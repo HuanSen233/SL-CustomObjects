@@ -9,6 +9,7 @@ using Object = UnityEngine.Object;
 
 public abstract class SchematicBlock : MonoBehaviour
 {
+    public virtual bool RequiredUniqName { get; } = false;
     public abstract BlockType BlockType { get; }
 
     [Tooltip("Object movement smoothing"), Range(0, 255)]

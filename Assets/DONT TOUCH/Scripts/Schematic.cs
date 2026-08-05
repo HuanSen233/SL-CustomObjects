@@ -44,21 +44,9 @@ public class Schematic : SchematicBlock
             
             foreach (var blockData in BlockList.Blocks)
             {
-                if (block.BlockType is 
-                    BlockType.Light or 
-                    BlockType.Empty or 
-                    BlockType.Interactable or 
-                    BlockType.Primitive or 
-                    BlockType.Schematic or 
-                    BlockType.Pickup or
-                    BlockType.Waypoint or 
-                    BlockType.Text or 
-                    BlockType.Workstation or 
-                    BlockType.Clutter or 
-                    BlockType.MirrorPrefab or 
-                    BlockType.PlayerBlocker or 
-                    BlockType.Trigger or 
-                    BlockType.CullingParent)
+                if (!Config.SafeBackwardCompatibility)
+                    break;
+                if (!block.RequiredUniqName)
                     continue;
                 if (blockData.Name != block.name) continue;
                 string errorMsg = $"Multiple blocks found with the name '{blockData.Name}'! Rename them so that each has a unique name.";

@@ -55,8 +55,8 @@ public class RightClickMenuExtended
 	[MenuItem("GameObject/🛠️ MER Blocks/Lights/Spot", false, -1)]
 	private static void CreateSpotLight(MenuCommand menuCommand) => CreateLight(menuCommand, LightType.Spot);
 
-	[MenuItem("GameObject/🛠️ MER Blocks/Lights/Area", false, -1)]
-	private static void CreateAreaLight(MenuCommand menuCommand) => CreateLight(menuCommand, LightType.Area);
+	[MenuItem("GameObject/🛠️ MER Blocks/Lights/Rectangle", false, -1)]
+	private static void CreateRectangleLight(MenuCommand menuCommand) => CreateLight(menuCommand, LightType.Rectangle);
 
 	private static void CreateLight(MenuCommand menuCommand, LightType lightType) => CreateBlock(menuCommand, $"Assets/Resources/Blocks/Lights/{lightType} Light.prefab");
 	#endregion
@@ -163,8 +163,15 @@ public class RightClickMenuExtended
 	[MenuItem("GameObject/🛠️ MER Blocks/PlayerBlocker", false, -1)]
 	private static void CreatePlayerBlocker(MenuCommand menuCommand) => CreateBlock(menuCommand, "Assets/Resources/Blocks/PlayerBlocker.prefab");
 	
-	[MenuItem("GameObject/🛠️ MER Blocks/CullingParent", false, -1)]
+	[MenuItem("GameObject/🛠️ MER Blocks/Culling/Culling Parent", false, -1)]
 	private static void CreateCullingParent(MenuCommand menuCommand) => CreateBlock(menuCommand, "Assets/Resources/Blocks/CullingParent.prefab");
+	
+	[MenuItem("GameObject/🛠️ MER Blocks/Culling/Culling Zone", false, -1)]
+	private static void CreateCullingZone(MenuCommand menuCommand) => CreateBlock(menuCommand, "Assets/Resources/Blocks/CullingZone.prefab");
+	
+	[MenuItem("GameObject/🛠️ MER Blocks/Culling/Culling Zone Connector", false, -1)]
+	private static void CreateCullingZoneConnector(MenuCommand menuCommand) => CreateBlock(menuCommand, "Assets/Resources/Blocks/CullingZoneConnector.prefab");
+
 	
 	#region MirrorPrefabs
 	
