@@ -46,7 +46,6 @@ public static class Decompiler
 			Dict.Add(BlockType.Trigger, gameObject.AddComponent<DONT_TOUCH.Scripts.BlockComponents.TriggerComponent>());
 			Dict.Add(BlockType.AudioPlayer, gameObject.AddComponent<DONT_TOUCH.Scripts.BlockComponents.AudioPlayerComponent>());
 			Dict.Add(BlockType.CullingZone, gameObject.AddComponent<DONT_TOUCH.Scripts.BlockComponents.CullingZoneComponent>());
-			Dict.Add(BlockType.CullingZoneConnector, gameObject.AddComponent<DONT_TOUCH.Scripts.BlockComponents.CullingZoneConnectorComponent>());
 			return this;
 		}
 	}
@@ -116,7 +115,7 @@ public static class Decompiler
 		_schematicBuilder = new GameObject("SchematicBuilder").AddComponent<SchematicBuilder>().Init();
 
 		CreateRecursiveFromID(_schematicData.RootObjectId, _schematicData.Blocks, _rootTransform);
-		CreateCullingZoneConnectors(_schematicData.Blocks);
+		CreateCullingZone(_schematicData.Blocks);
 		CreateTeleporters(_schematicData.Blocks);
 		CreateActionTargets(_schematicData.Blocks);
 		if (_schematicDirectoryPath != null)
@@ -337,19 +336,19 @@ public static class Decompiler
 		}
 	}
 
-	private static void CreateCullingZoneConnectors(List<SchematicBlockData> blocks)
+	private static void CreateCullingZone(List<SchematicBlockData> blocks)
 	{
 		foreach (var block in blocks)
 		{
-			if (block.BlockType != BlockType.CullingZoneConnector)
+			if (block.BlockType != BlockType.CullingZone)
 				continue;
-			var connector = _objectFromId[block.ObjectId].GetComponent<CullingZoneConnectorComponent>();
-			foreach (var id in ((JArray)block.Properties["CullingZones"]).ToObject<List<int>>())
+			var connector = _objectFromId[block.ObjectId].GetComponent<CullingZoneComponent>();
+			foreach (var id in ((JArray)block.Properties["ConnectedZones"]).ToObject<List<int>>())
 			{
 				if (!_objectFromId.TryGetValue(id, out Transform objectTransform) 
 				    || !objectTransform.TryGetComponent<CullingZoneComponent>(out var zoneComponent))
 					continue;
-				connector.CullingZones.Add(zoneComponent);
+				connector.ConnectedZones.Add(zoneComponent);
 			}
 		}
 	}

@@ -9,7 +9,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 601084638480590612}
-  - component: {fileID: 8111514906322262902}
   - component: {fileID: 1594663140625881274}
   m_Layer: 0
   m_Name: CullingZone
@@ -33,14 +32,6 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &8111514906322262902
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7393298085586474445}
-  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!114 &1594663140625881274
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -55,3 +46,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   MovementSmoothing: 60
   Type: 0
+  ObjectPerSpawn: 0
+  ConnectedZones: []
+  BoxSize: {x: 1, y: 1, z: 1}
+  Center: {x: 0, y: 0, z: 0}
+  SphereRadius: 1
+  CapsuleRadius: 0.5
+  CapsuleHeight: 2

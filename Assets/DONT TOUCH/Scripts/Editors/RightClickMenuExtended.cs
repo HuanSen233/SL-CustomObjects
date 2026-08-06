@@ -169,10 +169,6 @@ public class RightClickMenuExtended
 	[MenuItem("GameObject/🛠️ MER Blocks/Culling/Culling Zone", false, -1)]
 	private static void CreateCullingZone(MenuCommand menuCommand) => CreateBlock(menuCommand, "Assets/Resources/Blocks/CullingZone.prefab");
 	
-	[MenuItem("GameObject/🛠️ MER Blocks/Culling/Culling Zone Connector", false, -1)]
-	private static void CreateCullingZoneConnector(MenuCommand menuCommand) => CreateBlock(menuCommand, "Assets/Resources/Blocks/CullingZoneConnector.prefab");
-
-	
 	#region MirrorPrefabs
 	
 	[MenuItem("GameObject/🛠️ MER Blocks/MirrorPrefabs/Broken Electrical Box", false, -1)]
