@@ -46,6 +46,7 @@ public static class Decompiler
 			Dict.Add(BlockType.Trigger, gameObject.AddComponent<DONT_TOUCH.Scripts.BlockComponents.TriggerComponent>());
 			Dict.Add(BlockType.AudioPlayer, gameObject.AddComponent<DONT_TOUCH.Scripts.BlockComponents.AudioPlayerComponent>());
 			Dict.Add(BlockType.CullingZone, gameObject.AddComponent<DONT_TOUCH.Scripts.BlockComponents.CullingZoneComponent>());
+			Dict.Add(BlockType.Generator, gameObject.AddComponent<DONT_TOUCH.Scripts.BlockComponents.GeneratorComponent>());
 			return this;
 		}
 	}

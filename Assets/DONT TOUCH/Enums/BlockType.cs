@@ -25,5 +25,6 @@
         Trigger = 39,
         AudioPlayer = 40,
         CullingZone = 41,
+        Generator = 42,
     }
 }

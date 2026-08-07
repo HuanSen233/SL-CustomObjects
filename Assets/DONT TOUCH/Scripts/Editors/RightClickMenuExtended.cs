@@ -205,7 +205,9 @@ public class RightClickMenuExtended
 
 	[MenuItem("GameObject/🛠️ MER Blocks/AudioPlayer", false, -1)]
 	private static void CreateAudioPlayer(MenuCommand menuCommand) => CreateBlock(menuCommand, "Assets/Resources/Blocks/AudioPlayer.prefab");
-
+	
+	[MenuItem("GameObject/🛠️ MER Blocks/Generator", false, -1)]
+	private static void CreateGenerator(MenuCommand menuCommand) => CreateBlock(menuCommand, "Assets/Resources/Blocks/Generator.prefab");
 	
 	private static void CreateBlock(MenuCommand menuCommand, string prefabPath)
 	{
