@@ -78,11 +78,6 @@ public abstract class SchematicBlock : MonoBehaviour
             }
         }
     }
-
-    public void Awake()
-    {
-        LockChildrenRecursive(transform);
-    }
     
     [ContextMenu("Center Pivot To Children")]
     public void CenterPivotToChildren()
