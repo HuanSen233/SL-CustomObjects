@@ -60,10 +60,10 @@ crashlytics-build.properties
 
 .idea/
 config.json*
-/.dsh-vision-toolkit
-/Assets/Screenshots
-*.meta
-Assets/Tools/CurvesTool/CurveToolSettings.json
-Assets/Tools/CurvesTool/CurveManager.asset
-*.code-workspace
-Assets/Resources/Scenes/CustomObjectsTest.unity
+
+# Ignore .meta and JSON artifacts under Assets/Tools/ (tool-local generated files)
+Assets/Tools.meta
+Assets/Tools/**/*.meta
+Assets/Tools/**/*.json
+
+
