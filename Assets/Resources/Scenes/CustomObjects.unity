@@ -478,12 +478,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   Curves: []
-  CursorPosition: {x: 0, y: 0, z: 0}
+  CursorPosition: {x: 0, y: -0, z: -0}
   CursorLocked: 1
   CursorLockX: 0
   CursorLockY: 0
   CursorLockZ: 0
-  CursorReferenceMode: 0
+  CursorReferenceMode: 1
 --- !u!4 &2042086690
 Transform:
   m_ObjectHideFlags: 1

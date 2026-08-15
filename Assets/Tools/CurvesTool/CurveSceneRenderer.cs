@@ -3,7 +3,9 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
+/// SceneView curve renderer — draws virtual curves and preview wireframes.
 /// SceneView 曲线渲染器 — 绘制虚拟曲线及预览线框。
+/// Colors: curve=white, vertex=black, handle line=green, handle end=red, selected=yellow, selected segment=blue.
 /// 颜色：曲线=白, 顶点=黑, 曲柄线=绿, 曲柄端=红, 选中=黄, 选中线段=蓝。
 /// </summary>
 public static class CurveSceneRenderer
@@ -19,7 +21,8 @@ public static class CurveSceneRenderer
     private static Color PreviewWireColor => CurveTool.Instance?.GenerationColor ?? new Color(1f, 1f, 1f, 0.25f);
     private static float CursorSize => CurveTool.Instance?.CursorDisplaySize ?? 0.15f;
 
-    /// <summary>根据控制柄类型返回线颜色（高对比度色标）</summary>
+    /// <summary>Returns the handle line color by handle type (high-contrast color scale).
+    /// 根据控制柄类型返回线颜色（高对比度色标）</summary>
     private static Color GetHandleLineColor(HandleType type)
     {
         return type switch
@@ -46,7 +49,7 @@ public static class CurveSceneRenderer
 
         if (w.IsEditMode)
         {
-            // 编辑模式：完整渲染
+            // Edit mode: full rendering / 编辑模式：完整渲染
             if (m.Curves.Count > 0)
             {
                 foreach (var curve in m.Curves)
@@ -61,7 +64,7 @@ public static class CurveSceneRenderer
         }
         else if (w.PreviewMode)
         {
-            // 仅预览模式：只渲染预览线框
+            // Preview-only mode: render preview wireframes only / 仅预览模式：只渲染预览线框
             foreach (var curve in m.Curves)
             {
                 if (!curve.IsVisible) continue;
@@ -70,7 +73,8 @@ public static class CurveSceneRenderer
         }
     }
 
-    /// <summary>绘制曲线折线，按段选中/锁定状态着色</summary>
+    /// <summary>Draws the curve polyline, colored by segment selection/lock state.
+    /// 绘制曲线折线，按段选中/锁定状态着色</summary>
     private static void DrawCurveLine(BezierCurve curve)
     {
         bool is3d = curve.Is3D;
@@ -104,7 +108,7 @@ public static class CurveSceneRenderer
         }
     }
 
-    /// <summary>绘制顶点和曲柄</summary>
+    /// <summary>Draws vertices and handles. / 绘制顶点和曲柄</summary>
     private static void DrawVerticesAndHandles(BezierCurve curve)
     {
         bool is3d = curve.Is3D;
@@ -118,7 +122,8 @@ public static class CurveSceneRenderer
 
             if (!curve.IsLocked)
             {
-                // 3D 曲线 Y 轴高度箭头（绿色，指向 Y+）— 在曲柄和顶点之前渲染
+                // 3D Y-axis height arrows (green, pointing Y+) — rendered before handles and vertices
+        // 3D 曲线 Y 轴高度箭头（绿色，指向 Y+）— 在曲柄和顶点之前渲染
                 float arrowSize = CurveTool.Instance?.ArrowSize ?? 0.12f;
                 float arrowLen = arrowSize * 3f;
                 float coneSize = arrowSize * 0.75f;
@@ -143,27 +148,29 @@ public static class CurveSceneRenderer
                     Handles.ConeHandleCap(0, rhArrow, Quaternion.LookRotation(Vector3.up), coneSize, EventType.Repaint);
                 }
 
-                // 曲柄线 — 按 HandleType 着色（选中时线不变色，仅端点变色）
+                // Handle lines — colored by HandleType (the line keeps its color when selected; only the endpoint changes)
+        // 曲柄线 — 按 HandleType 着色（选中时线不变色，仅端点变色）
                 Handles.color = GetHandleLineColor(v.HandleTypeA);
                 Handles.DrawLine(pos, lh, 2f);
                 Handles.color = GetHandleLineColor(v.HandleTypeB);
                 Handles.DrawLine(pos, rh, 2f);
 
-                // 曲柄端点（球形）— 始终用默认端点色，仅选中时变黄
+                // Handle endpoints (spheres) — default color, yellow when selected / 曲柄端点（球形）— 始终用默认端点色，仅选中时变黄
                 Handles.color = v.SelectedSubElement == 1 ? SelectedColor : HandleEndColor;
                 Handles.SphereHandleCap(0, lh, Quaternion.identity, HandleEndSize, EventType.Repaint);
                 Handles.color = v.SelectedSubElement == 2 ? SelectedColor : HandleEndColor;
                 Handles.SphereHandleCap(0, rh, Quaternion.identity, HandleEndSize, EventType.Repaint);
             }
 
-            // 顶点（锁定时橙色）
+            // Vertices (orange when locked) / 顶点（锁定时橙色）
             Color vtxCol = curve.IsLocked ? new Color(1f, 0.6f, 0.2f) : VertexColor;
             Handles.color = v.IsSelected && v.SelectedSubElement == 3 ? SelectedColor : vtxCol;
             Handles.SphereHandleCap(0, pos, Quaternion.identity, VertexSize, EventType.Repaint);
         }
     }
 
-    /// <summary>绘制预览线框（每个小线段对应的物块，按 PrimitiveType 差异化）</summary>
+    /// <summary>Draws preview wireframes (one block per micro-segment, differentiated by PrimitiveType).
+    /// 绘制预览线框（每个小线段对应的物块，按 PrimitiveType 差异化）</summary>
     private static void DrawPreviewWireframes(BezierCurve curve)
     {
         var pts = curve.SamplePoints();
@@ -185,7 +192,8 @@ public static class CurveSceneRenderer
 
             Handles.color = PreviewWireColor;
 
-            // 按 PrimitiveType 绘制线框，尺寸匹配对应 Prefab 原生尺寸
+            // Draw the wireframe by PrimitiveType with dimensions matching the prefab's native size
+        // 按 PrimitiveType 绘制线框，尺寸匹配对应 Prefab 原生尺寸
             switch (seg.PrimitiveType)
             {
                 case PrimitiveType.Sphere:
@@ -210,12 +218,12 @@ public static class CurveSceneRenderer
         }
     }
 
-    // ===== 各 Primitive 原生尺寸参考 =====
-    // Cube:    1×1×1    Sphere:   1×1×1
-    // Capsule: 1×2×1    Cylinder: 1×2×1
-    // Plane:  10×1×10   Quad:     1×1
+    // ===== Native primitive size reference / 各 Primitive 原生尺寸参考 =====
+    // Cube: 1×1×1, Sphere: 1×1×1 / Cube: 1×1×1    Sphere: 1×1×1
+    // Capsule: 1×2×1, Cylinder: 1×2×1 / Capsule: 1×2×1    Cylinder: 1×2×1
+    // Plane: 10×1×10, Quad: 1×1 / Plane:  10×1×10   Quad:     1×1
 
-    /// <summary>Cube 预览：1×1×1 WireCube</summary>
+    /// <summary>Cube preview: 1×1×1 wire cube. / Cube 预览：1×1×1 WireCube</summary>
     private static void DrawWireCubeNative(Vector3 pos, Quaternion rot, Vector3 scale)
     {
         Handles.matrix = Matrix4x4.TRS(pos, rot, scale);
@@ -223,7 +231,8 @@ public static class CurveSceneRenderer
         Handles.matrix = Matrix4x4.identity;
     }
 
-    /// <summary>Sphere 预览：三向单位圆环置于 TRS 矩阵下统一变形</summary>
+    /// <summary>Sphere preview: three unit rings deformed uniformly by the TRS matrix.
+    /// Sphere 预览：三向单位圆环置于 TRS 矩阵下统一变形</summary>
     private static void DrawWireSphereNative(Vector3 pos, Quaternion rot, Vector3 scale)
     {
         Handles.matrix = Matrix4x4.TRS(pos, rot, scale);
@@ -233,7 +242,7 @@ public static class CurveSceneRenderer
         Handles.matrix = Matrix4x4.identity;
     }
 
-    /// <summary>Capsule 预览：原生 1×2×1，高=scale.y*2</summary>
+    /// <summary>Capsule preview: native 1×2×1, height = scale.y × 2. / Capsule 预览：原生 1×2×1，高=scale.y*2</summary>
     private static void DrawWireCapsuleNative(Vector3 pos, Quaternion rot, Vector3 scale)
     {
         Vector3 capSize = new Vector3(scale.x, scale.y * 2f, scale.z);
@@ -242,14 +251,15 @@ public static class CurveSceneRenderer
         Handles.matrix = Matrix4x4.identity;
     }
 
-    /// <summary>Cylinder 预览：原生 1×2×1，TRS 矩阵统一变形</summary>
+    /// <summary>Cylinder preview: native 1×2×1, deformed by the TRS matrix.
+    /// Cylinder 预览：原生 1×2×1，TRS 矩阵统一变形</summary>
     private static void DrawWireCylinderNative(Vector3 pos, Quaternion rot, Vector3 scale)
     {
         Handles.matrix = Matrix4x4.TRS(pos, rot, new Vector3(scale.x, scale.y * 2f, scale.z));
-        // 上下圆盘（半径 0.5）
+        // Top and bottom discs (radius 0.5) / 上下圆盘（半径 0.5）
         Handles.DrawWireDisc(Vector3.up * 0.5f,    Vector3.up, 0.5f);
         Handles.DrawWireDisc(Vector3.down * 0.5f,  Vector3.up, 0.5f);
-        // 四条竖线
+        // Four vertical lines / 四条竖线
         Vector3 r = Vector3.right * 0.5f, f = Vector3.forward * 0.5f;
         Handles.DrawLine(Vector3.up * 0.5f + r, Vector3.down * 0.5f + r);
         Handles.DrawLine(Vector3.up * 0.5f - r, Vector3.down * 0.5f - r);
@@ -258,11 +268,12 @@ public static class CurveSceneRenderer
         Handles.matrix = Matrix4x4.identity;
     }
 
-    /// <summary>Plane 预览：原生 10×1×10，TRS 矩阵统一变形</summary>
+    /// <summary>Plane preview: native 10×1×10, deformed by the TRS matrix.
+    /// Plane 预览：原生 10×1×10，TRS 矩阵统一变形</summary>
     private static void DrawWirePlaneNative(Vector3 pos, Quaternion rot, Vector3 scale)
     {
         Handles.matrix = Matrix4x4.TRS(pos, rot, new Vector3(scale.x * 10f, 1f, scale.z * 10f));
-        // 单位方块（半宽 0.5）的十字 + 对角线
+        // Unit square (half-width 0.5) cross + diagonals / 单位方块（半宽 0.5）的十字 + 对角线
         Vector3 r = Vector3.right * 0.5f, f = Vector3.forward * 0.5f;
         Handles.DrawLine(-r, r);
         Handles.DrawLine(-f, f);
@@ -271,7 +282,7 @@ public static class CurveSceneRenderer
         Handles.matrix = Matrix4x4.identity;
     }
 
-    /// <summary>Quad 预览：原生 1×1，十字线跨距=scale</summary>
+    /// <summary>Quad preview: native 1×1, cross span = scale. / Quad 预览：原生 1×1，十字线跨距=scale</summary>
     private static void DrawWireQuadNative(Vector3 pos, Quaternion rot, Vector3 scale)
     {
         Vector3 right = rot * Vector3.right * scale.x * 0.5f;
@@ -280,9 +291,10 @@ public static class CurveSceneRenderer
         Handles.DrawLine(pos - up, pos + up);
     }
 
-    // ===== 游标渲染 =====
+    // ===== Cursor rendering / 游标渲染 =====
 
-    /// <summary>绘制游标：蓝色/橙色线框球体 + 轴色箭头（相机自适应大小）</summary>
+    /// <summary>Draws the cursor: blue/orange wireframe sphere + axis-colored arrows (camera-adaptive size).
+    /// 绘制游标：蓝色/橙色线框球体 + 轴色箭头（相机自适应大小）</summary>
     private static void DrawCursor(CurveManager m)
     {
         float size = CursorSize * HandleUtility.GetHandleSize(m.CursorPosition);
@@ -290,18 +302,18 @@ public static class CurveSceneRenderer
         Color cursorCol = locked ? new Color(1f, 0.6f, 0.2f, 0.7f) : new Color(0.2f, 0.5f, 1f, 0.7f);
 
         Handles.color = cursorCol;
-        // 球体线框（三向圆环）
+        // Wireframe sphere (three rings) / 球体线框（三向圆环）
         Handles.DrawWireDisc(m.CursorPosition, Vector3.right,   size);
         Handles.DrawWireDisc(m.CursorPosition, Vector3.up,      size);
         Handles.DrawWireDisc(m.CursorPosition, Vector3.forward, size);
 
-        // X 轴箭头（红）
+        // X axis arrow (red) / X 轴箭头（红）
         Handles.color = Color.red;
         Handles.DrawLine(m.CursorPosition, m.CursorPosition + Vector3.right * size * 2f);
-        // Y 轴箭头（绿）
+        // Y axis arrow (green) / Y 轴箭头（绿）
         Handles.color = Color.green;
         Handles.DrawLine(m.CursorPosition, m.CursorPosition + Vector3.up * size * 2f);
-        // Z 轴箭头（蓝）
+        // Z axis arrow (blue) / Z 轴箭头（蓝）
         Handles.color = Color.blue;
         Handles.DrawLine(m.CursorPosition, m.CursorPosition + Vector3.forward * size * 2f);
     }

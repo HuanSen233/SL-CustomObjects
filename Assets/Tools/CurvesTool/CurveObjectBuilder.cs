@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
+/// Curve object generator — spawns a PrimitiveComponent along every micro-segment of a Bezier curve.
+/// Position = segment center (offsettable); scale = BaseScale → FitSegmentLength × segment length → × RelativeScale.
+/// Each segment picks its own primitive type via PrimitiveType.
 /// 曲线物体生成器 — 沿贝塞尔曲线每个小线段生成 PrimitiveComponent。
 /// 生成位置 = 段中心（可偏移），缩放 = BaseScale → FitSegmentLength 乘段长 → × RelativeScale。
 /// 每段按 PrimitiveType 独立选择生成物体类型。
@@ -10,7 +13,7 @@ using UnityEngine;
 public static class CurveObjectBuilder
 {
 
-    /// <summary>从曲线生成物体</summary>
+    /// <summary>Builds objects from a curve. / 从曲线生成物体</summary>
     public static void Build(BezierCurve curve)
     {
         if (curve == null || curve.Vertices.Count < 2)
@@ -26,6 +29,7 @@ public static class CurveObjectBuilder
             return;
         }
 
+        // Keep segment data in sync before iterating.
         // 确保段数据同步
         curve.RebuildSegments();
 
@@ -50,11 +54,12 @@ public static class CurveObjectBuilder
         Debug.Log($"<color=#00FF00>{L10n.T("gen_success", totalSegs, curve.Name)}</color>");
     }
 
+    /// <summary>Spawns a single primitive block and parents it under the generated-object container. / 生成单个物块并挂到生成容器下</summary>
     private static void Spawn(Vector3 pos, Quaternion rot, Vector3 scale, Color color, GameObject parent, int idx, PrimitiveType primitiveType)
     {
         string path = $"Assets/Resources/Blocks/Primitives/{primitiveType}.prefab";
         var comp = PrimitiveComponent.Create<PrimitiveComponent>(path);
-        if (comp == null) { Debug.LogError($"[CurveTool] 找不到 Prefab：{path}"); return; }
+        if (comp == null) { Debug.LogError($"[CurveTool] Prefab not found: {path}"); return; }
 
         comp.gameObject.name = $"seg_{idx}";
         comp.transform.position = pos;

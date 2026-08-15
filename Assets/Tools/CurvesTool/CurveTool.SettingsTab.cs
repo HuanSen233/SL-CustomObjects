@@ -2,7 +2,7 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// 曲线工具 — 设置 Tab + 关于 Tab
+/// Curve Tool — Settings tab + About tab. / 曲线工具 — 设置 Tab + 关于 Tab
 /// </summary>
 public partial class CurveTool
 {
@@ -33,6 +33,21 @@ public partial class CurveTool
         GUILayout.Space(12);
         EditorGUILayout.LabelField(L10n.T("snap_settings"), EditorStyles.boldLabel);
 
+        // Snap source toggle: hover the label for the reason; the right side shows the toggle and the active source.
+        // 吸附设定来源开关：悬停标签显示原因说明；右侧为开关与当前生效来源状态小字
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.Label(new GUIContent(L10n.T("snap_use_editor"), L10n.T("snap_use_editor_tip")),
+            GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
+        EditorGUI.BeginChangeCheck();
+        UseEditorSnapSettings = EditorGUILayout.Toggle(UseEditorSnapSettings);
+        bool snapSourceChanged = EditorGUI.EndChangeCheck();
+        GUILayout.Label(UseEditorSnapSettings ? L10n.T("snap_editor_ctrl") : L10n.T("snap_tool_ctrl"), EditorStyles.miniLabel);
+        EditorGUILayout.EndHorizontal();
+        if (snapSourceChanged) { SaveSettings(); SceneView.RepaintAll(); }
+
+        // In editor mode, disable the tool-local step inputs (grayed out) since the editor controls them.
+        // 编辑器模式下禁用工具自身步长输入（灰显），并提示由编辑器控制
+        EditorGUI.BeginDisabledGroup(UseEditorSnapSettings);
         EditorGUILayout.BeginHorizontal();
         GUILayout.Label(L10n.T("snap_grid_size"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
         GUILayout.Label("X", GUILayout.Width(12)); SnapGridSize.x = EditorGUILayout.FloatField(SnapGridSize.x);
@@ -46,6 +61,8 @@ public partial class CurveTool
         GUILayout.Label("Y", GUILayout.Width(12)); SnapIncrementMove.y = EditorGUILayout.FloatField(SnapIncrementMove.y);
         GUILayout.Label("Z", GUILayout.Width(12)); SnapIncrementMove.z = EditorGUILayout.FloatField(SnapIncrementMove.z);
         EditorGUILayout.EndHorizontal();
+        EditorGUI.EndDisabledGroup();
+
         if (GUI.changed) SceneView.RepaintAll();
 
         GUILayout.Space(12);
@@ -71,13 +88,20 @@ public partial class CurveTool
         GUILayout.Space(12);
         if (GUILayout.Button(L10n.T("reset_default"), GUILayout.Height(28)))
         {
-            VertexSize = 0.2f;
-            HandleEndSize = 0.12f;
-            VertexPointColor = Color.black;
-            HandleEndPointColor = Color.red;
-            SnapGridSize = new Vector3(0.5f, 0.5f, 0.5f);
-            SnapIncrementMove = Vector3.one;
+            // Reset every configurable item (values share the default constants to avoid drift).
+            // 全部可配置项复位（值与默认值常量同源，避免漂移）
+            VertexSize = DefaultVertexSize;
+            HandleEndSize = DefaultHandleEndSize;
+            ArrowSize = DefaultArrowSize;
+            CursorDisplaySize = DefaultCursorDisplaySize;
+            GenerationColor = DefaultGenerationColor;
+            VertexPointColor = DefaultVertexPointColor;
+            HandleEndPointColor = DefaultHandleEndPointColor;
+            UseEditorSnapSettings = true;
+            SnapGridSize = DefaultSnapGridSize;
+            SnapIncrementMove = DefaultSnapIncrementMove;
             L10n.SetLanguage(L10n.Lang.EN);
+            SaveSettings();
             SceneView.RepaintAll();
         }
         if (GUI.changed) SaveSettings();

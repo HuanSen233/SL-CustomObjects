@@ -2,12 +2,13 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
+/// SceneView curve interaction editor — mouse/keyboard event handling (drag, select, insert, extend).
 /// SceneView 曲线交互编辑器 — 鼠标/键盘事件处理（拖拽、选择、插入、延伸）。
 /// </summary>
 public static partial class CurveSceneEditor
 {
     // ============================================================
-    //  鼠标事件
+    //  Mouse events / 鼠标事件
     // ============================================================
 
     private static void HandleMouseDown(Event e, CurveManager m, CurveTool w)
@@ -19,11 +20,11 @@ public static partial class CurveSceneEditor
         {
             if (alt)
             {
-                // Alt+左键 → 选中整条曲线线段（贝塞尔跨度）
+                // Alt+Left-click → select the whole Bezier span / Alt+左键 → 选中整条曲线线段（贝塞尔跨度）
                 var spanHit = HitTestCurve(m, e, w);
                 if (spanHit.curveIndex >= 0 && !m.Curves[spanHit.curveIndex].IsLocked)
                 {
-                    // 选中该跨度对应的所有小线段
+                    // Select all micro-segments of that span / 选中该跨度对应的所有小线段
                     var curve = m.Curves[spanHit.curveIndex];
                     int startSeg = spanHit.segmentIndex * curve.SegmentCount;
                     int endSeg = startSeg + curve.SegmentCount - 1;
@@ -41,7 +42,7 @@ public static partial class CurveSceneEditor
             }
             else
             {
-                // 普通左键 → 优先级: 顶点/曲柄 > 小线段 > 清空
+                // Plain left-click → priority: vertex/handle > micro-segment > clear selection / 普通左键 → 优先级: 顶点/曲柄 > 小线段 > 清空
                 var hit = HitTest(m, e, w);
                 if (hit.curveIndex >= 0)
                 {
@@ -52,7 +53,7 @@ public static partial class CurveSceneEditor
                     _dragStartMouse = GetMouseWorldPos(e, w);
                     _dragStartMouse3D = m.SelectedVertex != null ? GetMouseWorldPos3D(e, m.SelectedVertex.Height) : Vector3.zero;
                     _dragStartValue = GetElementValue(m);
-                    // 保存起始控制柄 3D 偏移（3D 曲线用）
+                    // Save the start handle 3D offset (for 3D curves) / 保存起始控制柄 3D 偏移（3D 曲线用）
                     if (m.SelectedVertex != null && m.SelectedCurve != null && m.SelectedCurve.Is3D)
                     {
                         var sv = m.SelectedVertex;
@@ -63,9 +64,9 @@ public static partial class CurveSceneEditor
                             _ => Vector3.zero,
                         };
                     }
-                    // 保存屏幕位置（Y 轴拖拽用）
+                    // Save the screen position (for Y-axis dragging) / 保存屏幕位置（Y 轴拖拽用）
                     _dragStartScreenY = e.mousePosition.y;
-                    // 保存 Y 轴拖拽起始高度
+                    // Save the start height for Y-axis dragging / 保存 Y 轴拖拽起始高度
                     if (m.SelectedVertex != null)
                     {
                         var sv = m.SelectedVertex;
@@ -77,7 +78,7 @@ public static partial class CurveSceneEditor
                             _ => _dragStartMouse3D.y,
                         };
                     }
-                    // 保存所有多选顶点的初始值
+                    // Save the initial values of all multi-selected vertices / 保存所有多选顶点的初始值
                     SaveDragStartValues(m);
                     SnapDragStartIfNeeded(e, m);
                     e.Use();
@@ -95,7 +96,7 @@ public static partial class CurveSceneEditor
                     }
                     else if (!shift)
                     {
-                        // 尝试命中游标
+                        // Try to hit the cursor / 尝试命中游标
                         if (!m.CursorLocked && HitTestCursor(m, e))
                         {
                             _isDraggingCursor = true;
@@ -117,17 +118,17 @@ public static partial class CurveSceneEditor
         }
         else if (e.button == 1 && alt)
         {
-            // Alt+右键 → 在曲线段上插入顶点
+            // Alt+Right-click → insert a vertex on the curve span / Alt+右键 → 在曲线段上插入顶点
             var ch = HitTestCurve(m, e, w);
             if (ch.curveIndex >= 0 && ch.segmentIndex >= 0 && !m.Curves[ch.curveIndex].IsLocked)
             {
                 var curve = m.Curves[ch.curveIndex];
                 Vector2 ip = GetMouseWorldPos(e, w, curve.UpAxis);
-                // 先清理曲线选中状态
+                // Clear the curve selection state first / 先清理曲线选中状态
                 curve.IsSelected = false;
                 foreach (var v in curve.Vertices) { v.IsSelected = false; v.SelectedSubElement = 0; }
                 Undo.RecordObject(m, "插入顶点");
-                // 3D 曲线：将新顶点放在曲线本身上，而非射线与地面的交点
+                // 3D curves: place the new vertex on the curve itself, not at the ray-ground intersection / 3D 曲线：将新顶点放在曲线本身上，而非射线与地面的交点
                 CurveVertex nv;
                 if (curve.Is3D)
                 {
@@ -163,7 +164,7 @@ public static partial class CurveSceneEditor
         }
         else if (e.button == 1 && e.control)
         {
-            // Ctrl+右键 → 从选中端点延伸新顶点
+            // Ctrl+Right-click → extend a new vertex from the selected endpoint / Ctrl+右键 → 从选中端点延伸新顶点
             var sv = m.SelectedVertex;
             var sc = m.SelectedCurve;
             if (sv != null && sc != null && !sc.IsLoop)
@@ -191,7 +192,7 @@ public static partial class CurveSceneEditor
 
     private static void HandleMouseDrag(Event e, CurveManager m, CurveTool w)
     {
-        // 游标拖拽
+        // Cursor dragging / 游标拖拽
         if (_isDraggingCursor)
         {
             if (!_undoRecorded) { Undo.RecordObject(m, "移动游标"); _undoRecorded = true; }
@@ -201,15 +202,15 @@ public static partial class CurveSceneEditor
             {
                 Vector3 hit = ray.GetPoint(dist);
 
-                // 网格吸附/增量吸附
+                // Grid/increment snap (step: EditorSnapSettings.move in editor mode, tool-local values otherwise)
+                // 网格吸附/增量吸附（步长：编辑器模式取 EditorSnapSettings.move，工具模式取工具设置）
                 if (EditorSnapSettings.gridSnapEnabled || e.control || e.command)
                 {
-                    bool ctrlC = e.control || e.command;
-                    Vector3 gs = ctrlC ? w.SnapIncrementMove : w.SnapGridSize;
+                    Vector3 gs = GetSnapStep(w, e.control || e.command);
                     hit = SnapVector3(hit, gs);
                 }
 
-                // 分轴锁：保持被锁轴的值不变
+                // Per-axis locks: keep locked axes unchanged / 分轴锁：保持被锁轴的值不变
                 if (m.CursorLockX) hit.x = m.CursorPosition.x;
                 if (m.CursorLockY) hit.y = m.CursorPosition.y;
                 if (m.CursorLockZ) hit.z = m.CursorPosition.z;
@@ -228,11 +229,10 @@ public static partial class CurveSceneEditor
         if (vertex == null) return;
 
         Vector2 raw = GetMouseWorldPos(e, w);
-        // 网格吸附/增量吸附：Ctrl→Increment Snap Move，无Ctrl→Grid Size
+        // Grid/increment snap: Ctrl → increment step, otherwise grid size / 网格吸附/增量吸附：Ctrl→Increment Snap Move，无Ctrl→Grid Size
         bool ctrlSnap = e.control || e.command;
-        bool gridToggle = EditorSnapSettings.gridSnapEnabled;
-        bool useSnap = gridToggle || ctrlSnap;
-        Vector3 snapGs = ctrlSnap ? w.SnapIncrementMove : w.SnapGridSize;
+        bool useSnap = EditorSnapSettings.gridSnapEnabled || ctrlSnap;
+        Vector3 snapGs = GetSnapStep(w, ctrlSnap);
         var curve = m.SelectedCurve;
         if (curve != null && useSnap)
         {
@@ -244,6 +244,7 @@ public static partial class CurveSceneEditor
         Vector2 delta = raw - _dragStartMouse;
         if (!_undoRecorded) { Undo.RecordObject(m, "移动曲线元素"); _undoRecorded = true; }
 
+        // Dragging Auto/Vector/Aligned/Mirror handles auto-switches them to Free (per-side, matching the UI behavior)
         // 拖拽 Auto/Vector/Aligned/Mirror 柄时自动切为 Free（分别检测左右柄类型，与 UI 编辑行为一致）
         if ((vertex.SelectedSubElement == 1 || vertex.SelectedSubElement == 5) &&
             (vertex.HandleTypeA == HandleType.Auto || vertex.HandleTypeA == HandleType.Vector ||
@@ -367,7 +368,7 @@ public static partial class CurveSceneEditor
                 break;
         }
 
-        // 批量移动多选顶点
+        // Batch-move multi-selected vertices / 批量移动多选顶点
         if (m.SelectedVertexIndices.Count > 1 && _dragStartValues != null)
         {
             curve = m.SelectedCurve;
