@@ -3,13 +3,15 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
+/// A complete Bezier curve — pure virtual data, creates no GameObjects.
 /// 一条完整的贝塞尔曲线 — 纯虚拟数据，不产生 GameObject。
 /// </summary>
 [System.Serializable]
 public class BezierCurve
 {
     public string Name;
-    /// <summary>是否 3D 曲线（3D 时 UpAxis 无效，顶点使用 Height）</summary>
+    /// <summary>Whether this is a 3D curve (UpAxis is ignored; vertices use Height).
+    /// 是否 3D 曲线（3D 时 UpAxis 无效，顶点使用 Height）</summary>
     public bool Is3D;
     public UpAxis UpAxis = UpAxis.Y;
     public List<CurveVertex> Vertices = new List<CurveVertex>();
@@ -22,7 +24,7 @@ public class BezierCurve
 
     [NonSerialized]
     public bool IsSelected;
-    /// <summary>选中的段索引（采样点段，-1=无）</summary>
+    /// <summary>Selected segment index (sampled segment; -1 = none). / 选中的段索引（采样点段，-1=无）</summary>
     [NonSerialized]
     public int SelectedSegmentIndex = -1;
 
@@ -35,7 +37,8 @@ public class BezierCurve
         return curve;
     }
 
-    /// <summary>创建默认 3D 曲线（顶点在 XZ 平面上，Height 为高度）</summary>
+    /// <summary>Creates a default 3D curve (vertices on the XZ plane, Height as elevation).
+    /// 创建默认 3D 曲线（顶点在 XZ 平面上，Height 为高度）</summary>
     public static BezierCurve CreateDefault3D(string name = "New3DCurve")
     {
         var curve = new BezierCurve { Name = name, Is3D = true };
@@ -45,7 +48,8 @@ public class BezierCurve
         return curve;
     }
 
-    /// <summary>根据当前顶点和 SegmentCount 重建 Segments 列表</summary>
+    /// <summary>Rebuilds the Segments list from the current vertices and SegmentCount.
+    /// 根据当前顶点和 SegmentCount 重建 Segments 列表</summary>
     public void RebuildSegments()
     {
         int total = Mathf.Max(0, TotalSegmentCount);
@@ -53,7 +57,7 @@ public class BezierCurve
         if (Segments.Count > total) Segments.RemoveRange(total, Segments.Count - total);
     }
 
-    /// <summary>小线段总数 = 跨段数 × SegmentCount</summary>
+    /// <summary>Total micro-segment count = spans × SegmentCount. / 小线段总数 = 跨段数 × SegmentCount</summary>
     public int TotalSegmentCount
     {
         get
@@ -64,7 +68,8 @@ public class BezierCurve
         }
     }
 
-    /// <summary>沿曲线采样所有小线段端点（含首尾）</summary>
+    /// <summary>Samples all micro-segment endpoints along the curve (including both ends).
+    /// 沿曲线采样所有小线段端点（含首尾）</summary>
     public List<Vector2> SamplePoints()
     {
         var points = new List<Vector2>();
@@ -91,7 +96,8 @@ public class BezierCurve
         return points;
     }
 
-    /// <summary>沿曲线采样所有小线段端点的 3D 世界坐标</summary>
+    /// <summary>Samples all micro-segment endpoints as 3D world positions.
+    /// 沿曲线采样所有小线段端点的 3D 世界坐标</summary>
     public List<Vector3> SamplePoints3D()
     {
         var pts2d = SamplePoints();
@@ -103,14 +109,15 @@ public class BezierCurve
             return result;
         }
 
-        // 3D 曲线：采样 Z 值并组合为 (x, z, y)
+        // 3D curves: sample the Z values and combine as (x, z, y) / 3D 曲线：采样 Z 值并组合为 (x, z, y)
         var zs = SamplePointZ();
         for (int i = 0; i < pts2d.Count && i < zs.Count; i++)
             result.Add(new Vector3(pts2d[i].x, zs[i], pts2d[i].y));
         return result;
     }
 
-    /// <summary>采样所有小线段端点的 Z 值（3D 曲线用）</summary>
+    /// <summary>Samples the Z values of all micro-segment endpoints (for 3D curves).
+    /// 采样所有小线段端点的 Z 值（3D 曲线用）</summary>
     public List<float> SamplePointZ()
     {
         var zs = new List<float>();
@@ -138,13 +145,14 @@ public class BezierCurve
 
     private const float HandleLengthFactor = 1f / 3f;
 
-    /// <summary>根据 HandleTypeA/B 重新计算各侧控制柄（Auto/Vector 被自动覆盖）。端点断开侧镜像连接侧。</summary>
+    /// <summary>Recalculates handles by HandleTypeA/B (Auto/Vector are recomputed; open endpoints mirror the connected side).
+    /// 根据 HandleTypeA/B 重新计算各侧控制柄（Auto/Vector 被自动覆盖）。端点断开侧镜像连接侧。</summary>
     public void RecalculateHandles()
     {
         int n = Vertices.Count;
         if (n < 2) return;
 
-        // 2 顶点闭环：近似为圆形（切线方向 + 1/3 弦长）
+        // 2-vertex loop: approximated as a circle (tangent direction + 1/3 chord) / 2 顶点闭环：近似为圆形（切线方向 + 1/3 弦长）
         if (IsLoop && n == 2)
         {
             var v0 = Vertices[0];
@@ -153,9 +161,10 @@ public class BezierCurve
             float dh = Is3D ? v1.Height - v0.Height : 0f;
             float dist3D = Mathf.Sqrt(dir.sqrMagnitude + dh * dh);
             float len = dist3D * 2f / 3f;
-            // 用 SafeNormalize 防止两顶点重合时 dir 为零向量导致 NaN
+            // SafeNormalize prevents NaN when two vertices coincide (zero direction) / 用 SafeNormalize 防止两顶点重合时 dir 为零向量导致 NaN
             Vector2 tangent = SafeNormalize(new Vector2(-dir.y, dir.x)) * len;
 
+            // Only Auto gets the circular tangent; Vector gets the single-neighbor direction; other types stay untouched
             // 仅 Auto 类型赋圆形切线值，Vector 赋单邻居方向，其他类型不修改
             if (v0.HandleTypeA == HandleType.Auto)
                 v0.LeftHandle = -tangent;
@@ -182,7 +191,7 @@ public class BezierCurve
                 v1.RightHandleHeight = 0f;
             }
 
-            // 镜像/对齐：从对侧同步值
+            // Mirror/aligned: sync values from the opposite side / 镜像/对齐：从对侧同步值
             if (v0.HandleTypeA == HandleType.AlignedLength) v0.LeftHandle = -v0.RightHandle;
             else if (v0.HandleTypeA == HandleType.Aligned && v0.RightHandle.magnitude > 0.0001f)
                 v0.LeftHandle = -v0.RightHandle.normalized * v0.LeftHandle.magnitude;
@@ -217,7 +226,7 @@ public class BezierCurve
             bool hasNext = IsLoop || i < n - 1;
             bool isEndpoint = !IsLoop && (i == 0 || i == n - 1);
 
-            // 左柄（仅当 HandleTypeA 为 Auto/Vector 时自动计算）
+            // Left handle (auto-computed only when HandleTypeA is Auto/Vector) / 左柄（仅当 HandleTypeA 为 Auto/Vector 时自动计算）
             if (leftAutoVec)
             {
                 if (hasPrev)
@@ -233,7 +242,7 @@ public class BezierCurve
                 else v.LeftHandle = Vector2.zero;
             }
 
-            // 右柄（仅当 HandleTypeB 为 Auto/Vector 时自动计算）
+            // Right handle (auto-computed only when HandleTypeB is Auto/Vector) / 右柄（仅当 HandleTypeB 为 Auto/Vector 时自动计算）
             if (rightAutoVec)
             {
                 if (hasNext)
@@ -249,7 +258,7 @@ public class BezierCurve
                 else v.RightHandle = Vector2.zero;
             }
 
-            // 端点自动镜像：断开侧柄对齐连接侧
+            // Endpoint auto-mirror: the open-side handle aligns with the connected side / 端点自动镜像：断开侧柄对齐连接侧
             if (isEndpoint)
             {
                 if (i == 0 && hasNext && leftAutoVec)
@@ -258,7 +267,7 @@ public class BezierCurve
                     v.RightHandle = -v.LeftHandle;
             }
 
-            // 3D 曲线：自动计算高度方向控制柄
+            // 3D curves: auto-compute the height-direction handles / 3D 曲线：自动计算高度方向控制柄
             if (Is3D)
             {
                 if (leftAutoVec)
@@ -295,6 +304,7 @@ public class BezierCurve
             }
         }
 
+        // Mirror/aligned: sync from the opposite side (runs after Auto/Vector computation regardless of the other side's type)
         // 镜像/对齐：从对侧同步值（无论对侧类型，在 Auto/Vector 计算完成后执行）
         for (int i = 0; i < n; i++)
         {
@@ -316,7 +326,7 @@ public class BezierCurve
         return len < 1e-6f ? Vector2.zero : v / len;
     }
 
-    /// <summary>Vector2 → 3D 世界坐标</summary>
+    /// <summary>Vector2 → 3D world position. / Vector2 → 3D 世界坐标</summary>
     public Vector3 MapToWorld(Vector2 pt) => UpAxis switch
     {
         UpAxis.Y => new Vector3(pt.x, 0f, pt.y),
@@ -325,7 +335,7 @@ public class BezierCurve
         _ => new Vector3(pt.x, 0f, pt.y),
     };
 
-    /// <summary>3D 世界坐标 → Vector2</summary>
+    /// <summary>3D world position → Vector2. / 3D 世界坐标 → Vector2</summary>
     public Vector2 MapFromWorld(Vector3 w) => UpAxis switch
     {
         UpAxis.Y => new Vector2(w.x, w.z),
@@ -334,7 +344,7 @@ public class BezierCurve
         _ => new Vector2(w.x, w.z),
     };
 
-    /// <summary>编辑平面的法线（用于 Handles 朝向）</summary>
+    /// <summary>Normal of the editing plane (used for handle orientation). / 编辑平面的法线（用于 Handles 朝向）</summary>
     public Vector3 PlaneNormal => UpAxis switch
     {
         UpAxis.Y => Vector3.up,
@@ -349,7 +359,8 @@ public class BezierCurve
         return uu * u * p0 + 3f * uu * t * p1 + 3f * u * tt * p2 + tt * t * p3;
     }
 
-    /// <summary>1D 三次贝塞尔插值（用于 3D 曲线的 Z 分量）</summary>
+    /// <summary>1D cubic Bezier interpolation (used for the Z component of 3D curves).
+    /// 1D 三次贝塞尔插值（用于 3D 曲线的 Z 分量）</summary>
     private static float CubicBezier1D(float p0, float p1, float p2, float p3, float t)
     {
         float u = 1f - t, tt = t * t, uu = u * u;
