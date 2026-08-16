@@ -18,7 +18,7 @@ public static class CurveSceneRenderer
     private static Color HandleEndColor => CurveTool.Instance?.HandleEndPointColor ?? Color.red;
     private static Color SelectedColor => CurveTool.Instance?.SelectedColor ?? Color.yellow;
     private static Color SelectedSegmentColor => CurveTool.Instance?.SelectedSegmentColor ?? new Color(0.3f, 0.5f, 1f, 0.8f);
-    private static Color PreviewWireColor => CurveTool.Instance?.GenerationColor ?? new Color(1f, 1f, 1f, 0.25f);
+    private static Color PreviewWireColor => CurveTool.Instance?.GenerationColor ?? CurveTool.DefaultGenerationColor;
     private static float CursorSize => CurveTool.Instance?.CursorDisplaySize ?? 0.15f;
 
     /// <summary>Returns the handle line color by handle type (high-contrast color scale).

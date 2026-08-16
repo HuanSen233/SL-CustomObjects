@@ -51,7 +51,11 @@ public class CurveVertex
     public HandleType HandleTypeB = HandleType.Auto;
 
     /// <summary>Per-axis locks for the vertex (protect axes during UI and SceneView drags).
-    /// 顶点分轴锁（UI 和 SceneView 拖拽时保护对应轴不被修改）</summary>
+    /// Axis mapping (matches the editing-plane convention): LockX = world X, LockY = plane-Y (Position.y, i.e. world Z),
+    /// LockZ = world Y (Height). Field names are kept for serialization compatibility.
+    /// 顶点分轴锁（UI 和 SceneView 拖拽时保护对应轴不被修改）。
+    /// 轴映射（与编辑平面约定一致）：LockX=世界X，LockY=平面Y（Position.y，即世界 Z），LockZ=世界Y（Height）。
+    /// 字段名保留原名以保证序列化兼容。</summary>
     public bool LockX, LockY, LockZ;
     /// <summary>Per-axis locks for the left handle. / 左控制柄分轴锁</summary>
     public bool LeftHandleLockX, LeftHandleLockY, LeftHandleLockZ;

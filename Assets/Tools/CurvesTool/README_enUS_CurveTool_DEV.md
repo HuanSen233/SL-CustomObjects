@@ -28,7 +28,7 @@ Curve Tool is a **Unity editor tool** that provides Blender-style Bezier curve e
 |---|---|
 | `CurveTool.cs` | EditorWindow skeleton: lifecycle (OnEnable/OnDisable), mode bar, business logic (create/copy/mirror curves), settings persistence (JSON) |
 | `CurveTool.EditTab.cs` | Edit-tab UI: curve tools foldout (flip/mirror/cursor), curve list, vertex & handle properties, segment properties, generate section |
-| `CurveTool.SettingsTab.cs` | Settings-tab + About-tab UI |
+| `CurveTool.SettingsTab.cs` | Settings-tab UI |
 | `CurveManager.cs` | **Data-layer core**: scene data carrier (MonoBehaviour), singleton binding, data operations (add/remove curves & vertices, selection), dirty marking, legacy-asset migration, JSON export |
 | `BezierCurve.cs` | One curve: vertex/segment lists, sampling (2D/3D), handle recalculation (RecalculateHandles), coordinate mapping (MapToWorld/MapFromWorld) |
 | `BezierCurveData.cs` | Data models: `UpAxis`/\`HandleType\` enums, `CurveVertex` (vertex + left/right handles + per-axis locks + ApplyHandleType constraints) |
@@ -55,7 +55,7 @@ Curve Tool is a **Unity editor tool** that provides Blender-style Bezier curve e
 │  │  CurveTool   │   │ CurveSceneEditor │   │   CurveSceneRenderer        │  │
 │  │ (EditorWindow)│  │ (SceneView input)│   │   (SceneView rendering)      │  │
 │  │ Edit/Settings │  │ hit→drag→insert  │   │ curve/verts/handles/preview  │  │
-│  │ /About        │  │ →extend          │   │ /cursor                     │  │
+│  │               │  │ →extend          │   │ /cursor                     │  │
 │  └──────┬───────┘   └────────┬─────────┘   └────────────┬────────────────┘  │
 │         │  UI read/write     │ event read/write         │ read-only          │
 │         ▼                    ▼                          ▼                   │
@@ -255,9 +255,8 @@ Hit radii scale with the view (`HandleUtility.GetHandleSize`); with multiple cur
 
 ## 9. UI Structure (CurveTool)
 
-- Edit tab: `Curve Tools` (flip X/Y/Z, mirror X/Y/Z, cursor reference frame, cursor properties/lock/reset), `Curve List` (create 2D/3D + per-row ○select/D display/L lock/name/axis/segments/R loop/C copy/✕ delete + delete-all), `Vertex & Handle Properties` (position + per-axis locks, handle type, left/right handle positions), `Segment Properties` (base primitive/base scale/center offset/fit segment length/relative scale/rotation offset/position offset; batch-applied to all selected segments), `Generate Objects` (color + Generate + Preview toggle).
+- Edit tab: `Curve Tools` (flip X/Y/Z, mirror X/Y/Z, cursor reference frame, cursor properties/lock/reset), `Curve List` (create 2D/3D + per-row ○select/D display/E enable/L lock/name/axis/segments/R loop/C copy/✕ delete + delete-all), `Vertex & Handle Properties` (position + per-axis locks, handle type, left/right handle positions), `Segment Properties` (base primitive/base scale/center offset/fit segment length/relative scale/rotation offset/position offset; batch-applied to all selected segments), `Generate Objects` (color + Generate + Preview toggle).
 - Settings tab: size (vertex/handle/arrow), snapping (grid/increment), colors (vertex/handle end), language, reset-to-default.
-- About tab: usage, key bindings, button legend (all L10n-driven).
 
 ---
 

@@ -49,7 +49,7 @@ Menu: **Tools → Curve Tool** (window title: Curve Tool).
 |---|---|
 | **Curve Edit** toggle | Enables Scene-view editing of curves (button turns green when on) |
 | **Curve Tools** | Flip X/Y/Z, Mirror X/Y/Z (about origin or cursor), Cursor Reference Frame toggle, cursor position (with per-axis locks) / lock / reset |
-| **Curve List** | Create row (name + segment count + 2D/3D buttons); each row: select ○, display D, lock L, name, axis, segment count, loop R, copy C, delete ✕; "Delete All Curves" at the bottom |
+| **Curve List** | Create row (name + segment count + 2D/3D buttons); each row: select ○, display D, enable E, lock L, name, axis, segment count, loop R, copy C, delete ✕; "Delete All Curves" at the bottom |
 | **Vertex & Handle Properties** | Position of the selected vertex (per-axis locks), handle type, left/right handle positions (per-axis locks) |
 | **Segment Properties** | Base primitive, base scale, center offset, fit segment length, relative scale, rotation offset, position offset of selected micro-segments (applies to all selected segments) |
 | **Generate Objects** | Object color, **Generate** button, **Preview** toggle |
@@ -63,10 +63,6 @@ Menu: **Tools → Curve Tool** (window title: Curve Tool).
 | Color | Vertex color, handle-end color |
 | Language | English / 简体中文 (switches immediately) |
 | Other | Reset to Default |
-
-### About Tab
-
-Usage instructions, key bindings and the button legend.
 
 ---
 

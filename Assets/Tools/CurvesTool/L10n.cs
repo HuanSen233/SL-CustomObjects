@@ -23,7 +23,7 @@ public static class L10n
         { "curve_list",         new() { [Lang.EN] = "Curve List",                 [Lang.ZH] = "曲线列表" } },
         { "transform",          new() { [Lang.EN] = "Transform",                   [Lang.ZH] = "变换" } },
         { "cursor_section",     new() { [Lang.EN] = "Cursor",                      [Lang.ZH] = "游标" } },
-        { "curve_row_legend",   new() { [Lang.EN] = "○ select · D display · L lock · R loop · C copy · ✕ delete", [Lang.ZH] = "○ 选择 · D 显示 · L 锁定 · R 闭环 · C 复制 · ✕ 删除" } },
+        { "curve_row_legend",   new() { [Lang.EN] = "○ select · D display · E enable · L lock · R loop · C copy · ✕ delete", [Lang.ZH] = "○ 选择 · D 显示 · E 启用 · L 锁定 · R 闭环 · C 复制 · ✕ 删除" } },
         { "cursor_props",       new() { [Lang.EN] = "Cursor Properties",          [Lang.ZH] = "游标属性" } },
         { "lock_cursor",        new() { [Lang.EN] = "Lock Cursor",                [Lang.ZH] = "锁定游标" } },
         { "seg_props",          new() { [Lang.EN] = "Segment Properties",         [Lang.ZH] = "选中段属性" } },

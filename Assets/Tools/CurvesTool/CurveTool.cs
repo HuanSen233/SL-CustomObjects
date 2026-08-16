@@ -93,7 +93,6 @@ public partial class CurveTool : EditorWindow
     public Color HandleEndPointColor = DefaultHandleEndPointColor;
     public Color SelectedColor = Color.yellow;
     public Color SelectedSegmentColor = new Color(0.3f, 0.5f, 1f, 0.8f);
-    public Color PreviewWireColor = new Color(1f, 1f, 1f, 0.25f);
     public Color GenerationColor = DefaultGenerationColor;
     public float CursorDisplaySize = DefaultCursorDisplaySize;
     public float ArrowSize = DefaultArrowSize;

@@ -50,22 +50,22 @@ public class CurveManager : MonoBehaviour
     public bool CursorReferenceMode;
 
     /// <summary>Tool directory (Assets-relative path) — derived from the script location, follows folder moves.
-    /// 工具目录（Assets 相对路径）— 基于脚本位置动态推导，目录移动后自动跟随</summary>
+    /// Resolved live on every access (no cache): access frequency is low (settings load/save only),
+    /// and a moved folder is picked up immediately.
+    /// 工具目录（Assets 相对路径）— 基于脚本位置动态推导，目录移动后自动跟随。
+    /// 每次访问实时解析（不做缓存）：访问频率低（仅设置读写时），目录移动后立即生效</summary>
     public static string ToolDirectory
     {
         get
         {
-            if (_toolDirectory != null) return _toolDirectory;
             // Locate the directory via the script asset (script name is unique in the project).
             // 通过脚本名查找脚本资产定位目录（脚本名在项目内唯一）
             var guids = AssetDatabase.FindAssets("CurveManager t:MonoScript");
-            _toolDirectory = guids.Length > 0
+            return guids.Length > 0
                 ? Path.GetDirectoryName(AssetDatabase.GUIDToAssetPath(guids[0])).Replace('\\', '/')
                 : "Assets/Tools/CurvesTool";
-            return _toolDirectory;
         }
     }
-    private static string _toolDirectory;
 
     // ===== Singleton binding / 单例绑定 =====
 

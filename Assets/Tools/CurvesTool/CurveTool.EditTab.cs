@@ -511,6 +511,12 @@ public partial class CurveTool
             { Undo.RecordObject(_manager, "隐藏"); curve.IsVisible = !curve.IsVisible; _manager.MarkDirty(); SceneView.RepaintAll(); }
             GUI.backgroundColor = isSel ? UiSelectedBg : Color.white;
 
+            // Enable E (generation permission; disabled curves cannot generate objects) / 启用 E（生成许可，禁用时不可生成物体）
+            GUI.backgroundColor = curve.IsEnabled ? Color.white : UiPlaceholderGray;
+            if (GUILayout.Button("E", GUILayout.Width(22)))
+            { Undo.RecordObject(_manager, "启用"); curve.IsEnabled = !curve.IsEnabled; _manager.MarkDirty(); SceneView.RepaintAll(); }
+            GUI.backgroundColor = isSel ? UiSelectedBg : Color.white;
+
             // Lock L / 锁定 L
             GUI.backgroundColor = curve.IsLocked ? UiLockedOrange : UiDisabledGray;
             if (GUILayout.Button("L", GUILayout.Width(22)))
