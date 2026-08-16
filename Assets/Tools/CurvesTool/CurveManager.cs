@@ -204,7 +204,9 @@ public class CurveManager : MonoBehaviour
         curve.RebuildSegments();
         curve.RecalculateHandles();
         Curves.Add(curve);
-        SelectedCurveIndex = Curves.Count - 1;
+        // Full selection (IsSelected = true so the new curve highlights in the Scene view too).
+        // 完整选中（IsSelected 置位，新曲线在场景视图中同步高亮）
+        Select(Curves.Count - 1);
         MarkDirty();
         return curve;
     }

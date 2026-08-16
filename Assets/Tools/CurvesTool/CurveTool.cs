@@ -150,7 +150,9 @@ public partial class CurveTool : EditorWindow
 
     private void OnGUI()
     {
-        if (_manager == null) _manager = CurveManager.Instance;
+        // Rebind after scene switches: the cached _manager belongs to the scene active when the window opened.
+        // 场景切换后重新绑定：缓存的 _manager 属于窗口打开时的场景，可能已过期
+        if (_manager == null || _manager != CurveManager.Instance) _manager = CurveManager.Instance;
         DrawHeader();
         // Clamp the tab index to prevent out-of-range access (e.g. stale _selectedTab after tabs were removed).
         // 防止历史选中索引越界（如移除页签后残留的 _selectedTab）
