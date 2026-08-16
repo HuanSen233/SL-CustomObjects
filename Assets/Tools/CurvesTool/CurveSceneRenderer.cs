@@ -369,10 +369,12 @@ public static class CurveSceneRenderer
     }
 
     /// <summary>Capsule preview: cylinder (diameter 1, height 1) + hemispheres (radius 0.5) at y = ±0.5.
-    /// Capsule 预览：圆柱（直径 1、柱高 1）+ 球心 ±0.5Y、半径 0.5 的上下半球</summary>
+    /// Drawn at native size (total height 2), so the matrix scale equals the segment scale directly.
+    /// Capsule 预览：圆柱（直径 1、柱高 1）+ 球心 ±0.5Y、半径 0.5 的上下半球。
+    /// 内容已按原生尺寸（总高 2）绘制，矩阵缩放直接取段缩放（不再额外 ×2）</summary>
     private static void DrawWireCapsuleNative(Vector3 pos, Quaternion rot, Vector3 scale)
     {
-        Handles.matrix = Matrix4x4.TRS(pos, rot, new Vector3(scale.x, scale.y * 2f, scale.z));
+        Handles.matrix = Matrix4x4.TRS(pos, rot, scale);
 
         // Cylinder part: top/bottom discs (y = ±0.5) + 4 vertical lines / 圆柱部分：上下圆盘（y=±0.5）+ 4 条竖线
         Handles.DrawWireDisc(Vector3.up * 0.5f, Vector3.up, 0.5f);
@@ -384,20 +386,38 @@ public static class CurveSceneRenderer
         Handles.DrawLine(Vector3.up * 0.5f - f, Vector3.down * 0.5f - f);
 
         // Upper hemisphere (center +0.5Y) / 上半球（球心 +0.5Y）
-        DrawWireHemisphere(Vector3.up * 0.5f);
+        DrawWireHemisphere(Vector3.up * 0.5f, true);
         // Lower hemisphere (center -0.5Y) / 下半球（球心 -0.5Y）
-        DrawWireHemisphere(Vector3.down * 0.5f);
+        DrawWireHemisphere(Vector3.down * 0.5f, false);
 
         Handles.matrix = Matrix4x4.identity;
     }
 
-    /// <summary>Draws a hemisphere wireframe (three meridian semicircles, radius 0.5).
-    /// 绘制半球线框（三条经线半圆，半径 0.5）</summary>
-    private static void DrawWireHemisphere(Vector3 center)
+    /// <summary>Draws a hemisphere wireframe: two meridian semicircles crossing at the pole (X and Z), no latitude line.
+    /// The cylinder's top/bottom discs already serve as the connecting latitude, so the hemisphere needs none.
+    /// 绘制半球线框：两条十字经线半圆（X、Z 方向，极点交叉），无纬线。
+    /// 圆柱的上下圆盘已充当连接半球的纬线，半球无需再画</summary>
+    private static void DrawWireHemisphere(Vector3 center, bool facingUp)
     {
-        Handles.DrawWireArc(center, Vector3.right, Vector3.forward, 180f, 0.5f);
-        Handles.DrawWireArc(center, Vector3.forward, Vector3.right, 180f, 0.5f);
-        Handles.DrawWireArc(center, (Vector3.right + Vector3.forward).normalized, Vector3.forward, 180f, 0.5f);
+        Vector3 axis = facingUp ? Vector3.up : Vector3.down;
+        DrawSemicircle(center, Vector3.right, axis);
+        DrawSemicircle(center, Vector3.forward, axis);
+    }
+
+    /// <summary>Draws one open meridian semicircle: from equator +h, over the pole (axis direction), to equator -h.
+    /// The start point is the +h equator, so the arc ends at -h and never closes back on itself.
+    /// 画一条开口经线半圆：从赤道 +h 经极点（axis 方向）到赤道 -h。
+    /// 起点为 +h 赤道，终点落在 -h 赤道，弧不会闭合回起点</summary>
+    private static void DrawSemicircle(Vector3 center, Vector3 h, Vector3 axis)
+    {
+        Vector3 prev = center + h * 0.5f;
+        for (int i = 1; i <= 12; i++)
+        {
+            float ph = Mathf.PI * i / 12f;
+            Vector3 p = center + (h * Mathf.Cos(ph) + axis * Mathf.Sin(ph)) * 0.5f;
+            Handles.DrawLine(prev, p);
+            prev = p;
+        }
     }
 
     /// <summary>Cylinder preview: native 1×2×1, deformed by the TRS matrix.
@@ -417,11 +437,13 @@ public static class CurveSceneRenderer
         Handles.matrix = Matrix4x4.identity;
     }
 
-    /// <summary>Plane preview: native 10×1×10 frame + center cross + blue face-normal line (1 local unit).
-    /// Plane 预览：原生 10×1×10 方框 + 中心十字线 + 蓝色面朝向垂线（1 本地单位，法线 +Y）</summary>
+    /// <summary>Plane preview: native 10×10 frame + center cross + blue face-normal line (1 local unit).
+    /// Drawn at native size (10×10), so the matrix scale equals the segment scale directly.
+    /// Plane 预览：原生 10×10 方框 + 中心十字线 + 蓝色面朝向垂线（1 本地单位，法线 +Y）。
+    /// 内容已按原生尺寸（10×10）绘制，矩阵缩放直接取段缩放（不再额外 ×10）</summary>
     private static void DrawWirePlaneNative(Vector3 pos, Quaternion rot, Vector3 scale)
     {
-        Handles.matrix = Matrix4x4.TRS(pos, rot, new Vector3(scale.x * 10f, 1f, scale.z * 10f));
+        Handles.matrix = Matrix4x4.TRS(pos, rot, new Vector3(scale.x, 1f, scale.z));
 
         // Frame (half-width 5) / 方框（半宽 5）
         Vector3 r = Vector3.right * 5f, f = Vector3.forward * 5f;
