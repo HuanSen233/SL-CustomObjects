@@ -37,7 +37,7 @@
 | `CurveSceneEditor.HitTest.cs` | 命中检测：顶点/控制柄/箭头（7 轮优先级扫描）、曲线段、小线段、游标 |
 | `CurveSceneEditor.MouseEvents.cs` | 鼠标/键盘事件处理：选择、拖拽（含多选批量）、插入顶点、延伸顶点、删除 |
 | `CurveSceneEditor.Utility.cs` | 辅助：鼠标→世界坐标（平面投影）、吸附、几何工具（点线距/贝塞尔插值） |
-| `CurveSceneRenderer.cs` | SceneView 渲染：曲线折线、顶点/控制柄/箭头、预览线框（各 Primitive 原生尺寸）、游标 |
+| `CurveSceneRenderer.cs` | SceneView 渲染：曲线折线、顶点/控制柄/箭头、预览（线框 / 三角面，各 Primitive 原生尺寸 / 真实网格边）、游标 |
 | `CurveObjectBuilder.cs` | 生成器：沿曲线采样、逐段 Spawn `PrimitiveComponent`、Undo 注册、父对象组织 |
 | `CurvePlacementHelper.cs` | **放置参数计算器**：段位置/旋转/缩放统一算法，生成与预览共用（预览所见 = 生成所得） |
 | `L10n.cs` | 静态多语言字典 + 切换 API |
@@ -208,10 +208,11 @@
 ## 6. 渲染系统（CurveSceneRenderer）
 
 - 注册/注销：`CurveSceneRenderer.Register()/Unregister()`（SceneView.duringSceneGui），由 CurveTool.OnEnable/OnDisable 管理。
-- **编辑模式**：完整渲染（曲线折线 + 顶点/控制柄 + 预览线框开关）。
-- **预览模式**（不进入编辑）：仅渲染预览线框。
+- **编辑模式**：完整渲染（曲线折线 + 顶点/控制柄 + 预览，预览由三态 `PreviewStyle` 控制：Off 关 / Wireframe 线框 / Triangles 三角面）。
+- **预览模式**（不进入编辑）：仅渲染预览（线框或三角面）。
 - 颜色体系：曲线=白、顶点=黑、曲柄线按类型（Auto=绿、Aligned=蓝、AlignedLength=青、Vector=橙、Free=灰）、曲柄端=红、选中=黄、选中段=蓝、锁定=橙；均可在窗口/设置中调整。
-- **预览线框按 Primitive 原生尺寸**绘制（Cube/Sphere 1×1×1、Capsule/Cylinder 1×2×1、Plane 10×1×10、Quad 1×1），经 `Matrix4x4.TRS` 统一变形，与 Prefab 实际尺寸对齐。
+- **预览线框按 Primitive 原生尺寸**绘制（Cube/Sphere 1×1×1、Capsule 柱 1×1×1+上下半球、Cylinder 1×2×1、Plane 10×1×10、Quad 1×1），经 `Matrix4x4.TRS` 统一变形，与 Prefab 实际尺寸对齐；Plane/Quad 含蓝色面朝向垂线（1 本地单位）。
+- **三角面预览**：优先读取 `Resources/Blocks/Primitives/{类型}.prefab` 的 MeshFilter 网格（缓存去重边集合），`Handles.matrix` 一次变换整段；网格不可读时退化为内置网格（New-*.fbx），仍不可读则退化为线框。
 - 游标：线框球体（三向圆环）+ 轴色箭头，大小随视图缩放。
 
 ---
@@ -253,7 +254,7 @@
 
 ## 9. UI 结构（CurveTool）
 
-- 编辑 Tab：`曲线工具`（翻转 X/Y/Z、镜像 X/Y/Z、游标参考系、游标属性/锁定/重置）、`曲线列表`（新建 2D/3D + 每行 ○选择/D显示/E启用/L锁定/名称/轴向/段数/R闭环/C复制/✕删除 + 删除全部）、`顶点与控制柄属性`（位置+分轴锁、控制柄类型、左右柄位置）、`选中段属性`（基础物体/基础缩放/中心点偏移/适应段长/相对缩放/旋转偏移/位置偏移，批量作用于所有选中段）、`物体生成`（颜色 + 生成 + 预览开关）。
+- 编辑 Tab：`曲线工具`（翻转 X/Y/Z、镜像 X/Y/Z、游标参考系、游标属性/锁定/重置）、`曲线列表`（新建 2D/3D + 每行 ○选择/D显示/E启用/L锁定/名称/轴向/段数/R闭环/C复制/✕删除 + 删除全部）、`顶点与控制柄属性`（位置+分轴锁、控制柄类型、左右柄位置）、`选中段属性`（基础物体/基础缩放/中心点偏移/适应段长/相对缩放/旋转偏移/位置偏移，批量作用于所有选中段）、`物体生成`（颜色 + 生成 + 预览三态：关/线框/三角面）。
 - 设置 Tab：尺寸（顶点/控制柄/箭头）、吸附（网格步长/增量步长）、颜色（顶点/柄端）、语言、重置默认。
 
 ---

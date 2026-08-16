@@ -43,7 +43,7 @@ public static class CurveSceneRenderer
     {
         var w = CurveTool.Instance;
         if (w == null) return;
-        if (!w.IsEditMode && !w.PreviewMode) return;
+        if (!w.IsEditMode && w.PreviewStyle == PreviewStyle.Off) return;
         var m = CurveManager.Instance;
         if (m == null) return;
 
@@ -57,18 +57,20 @@ public static class CurveSceneRenderer
                     if (!curve.IsVisible) continue;
                     DrawCurveLine(curve);
                     DrawVerticesAndHandles(curve);
-                    if (w.PreviewMode) DrawPreviewWireframes(curve);
+                    if (w.PreviewStyle == PreviewStyle.Wireframe) DrawPreviewWireframes(curve);
+                    else if (w.PreviewStyle == PreviewStyle.Triangles) DrawPreviewTriangleMeshes(curve);
                 }
             }
             DrawCursor(m);
         }
-        else if (w.PreviewMode)
+        else if (w.PreviewStyle != PreviewStyle.Off)
         {
-            // Preview-only mode: render preview wireframes only / 仅预览模式：只渲染预览线框
+            // Preview-only mode: render previews only / 仅预览模式：只渲染预览
             foreach (var curve in m.Curves)
             {
                 if (!curve.IsVisible) continue;
-                DrawPreviewWireframes(curve);
+                if (w.PreviewStyle == PreviewStyle.Wireframe) DrawPreviewWireframes(curve);
+                else if (w.PreviewStyle == PreviewStyle.Triangles) DrawPreviewTriangleMeshes(curve);
             }
         }
     }
@@ -194,27 +196,151 @@ public static class CurveSceneRenderer
 
             // Draw the wireframe by PrimitiveType with dimensions matching the prefab's native size
         // 按 PrimitiveType 绘制线框，尺寸匹配对应 Prefab 原生尺寸
-            switch (seg.PrimitiveType)
+            DrawWireByType(seg.PrimitiveType, genPos, rot, scale);
+        }
+    }
+
+    /// <summary>Draws the hand-drawn wireframe for a primitive type. / 按类型绘制手绘线框</summary>
+    private static void DrawWireByType(PrimitiveType type, Vector3 pos, Quaternion rot, Vector3 scale)
+    {
+        switch (type)
+        {
+            case PrimitiveType.Sphere:
+                DrawWireSphereNative(pos, rot, scale);
+                break;
+            case PrimitiveType.Capsule:
+                DrawWireCapsuleNative(pos, rot, scale);
+                break;
+            case PrimitiveType.Cylinder:
+                DrawWireCylinderNative(pos, rot, scale);
+                break;
+            case PrimitiveType.Plane:
+                DrawWirePlaneNative(pos, rot, scale);
+                break;
+            case PrimitiveType.Quad:
+                DrawWireQuadNative(pos, rot, scale);
+                break;
+            default: // Cube
+                DrawWireCubeNative(pos, rot, scale);
+                break;
+        }
+    }
+
+    // ===== Triangle preview (real mesh edges) / 三角面预览（真实网格边） =====
+
+    private struct MeshEdge { public Vector3 A, B; }
+
+    /// <summary>Prefab cache (avoid per-frame Resources.Load). / Prefab 缓存（避免每帧 Resources.Load）</summary>
+    private static readonly Dictionary<PrimitiveType, GameObject> PrefabCache = new Dictionary<PrimitiveType, GameObject>();
+
+    /// <summary>Deduplicated local-space edge cache per mesh instance. / 网格去重边缓存（本地空间，按网格实例）</summary>
+    private static readonly Dictionary<int, MeshEdge[]> EdgeCache = new Dictionary<int, MeshEdge[]>();
+
+    /// <summary>Builtin mesh fallback names (used when the prefab mesh is unreadable).
+    /// 内置网格兜底名（Prefab 网格不可读时使用）</summary>
+    private static string BuiltinMeshName(PrimitiveType t) => t switch
+    {
+        PrimitiveType.Sphere => "New-Sphere.fbx",
+        PrimitiveType.Capsule => "New-Capsule.fbx",
+        PrimitiveType.Cylinder => "New-Cylinder.fbx",
+        PrimitiveType.Plane => "New-Plane.fbx",
+        PrimitiveType.Quad => "New-Quad.fbx",
+        _ => "New-Cube.fbx",
+    };
+
+    /// <summary>Gets the mesh for a primitive: the project prefab's mesh first, the builtin mesh as fallback.
+    /// 获取物体网格：优先项目 Prefab 网格，兜底内置网格（均要求可读）</summary>
+    private static bool TryGetPreviewMesh(PrimitiveType type, out Mesh mesh, out Matrix4x4 localToWorld)
+    {
+        mesh = null;
+        localToWorld = Matrix4x4.identity;
+        if (!PrefabCache.TryGetValue(type, out var prefab))
+        {
+            prefab = Resources.Load<GameObject>($"Blocks/Primitives/{type}");
+            PrefabCache[type] = prefab;
+        }
+        if (prefab != null)
+        {
+            var mf = prefab.GetComponentInChildren<MeshFilter>();
+            if (mf != null && mf.sharedMesh != null && mf.sharedMesh.isReadable)
             {
-                case PrimitiveType.Sphere:
-                    DrawWireSphereNative(genPos, rot, scale);
-                    break;
-                case PrimitiveType.Capsule:
-                    DrawWireCapsuleNative(genPos, rot, scale);
-                    break;
-                case PrimitiveType.Cylinder:
-                    DrawWireCylinderNative(genPos, rot, scale);
-                    break;
-                case PrimitiveType.Plane:
-                    DrawWirePlaneNative(genPos, rot, scale);
-                    break;
-                case PrimitiveType.Quad:
-                    DrawWireQuadNative(genPos, rot, scale);
-                    break;
-                default: // Cube
-                    DrawWireCubeNative(genPos, rot, scale);
-                    break;
+                mesh = mf.sharedMesh;
+                // Prefab-internal hierarchy transform (mesh may sit on a child object).
+                // Prefab 内部层级变换（网格可能挂在子物体上）
+                localToWorld = mf.transform.localToWorldMatrix;
+                return true;
             }
+        }
+        mesh = Resources.GetBuiltinResource<Mesh>(BuiltinMeshName(type));
+        if (mesh != null && mesh.isReadable)
+        {
+            localToWorld = Matrix4x4.identity;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>Extracts deduplicated edges from a mesh (cached per mesh instance).
+    /// 提取网格的去重边集合（按网格实例缓存）</summary>
+    private static MeshEdge[] GetMeshEdges(Mesh mesh)
+    {
+        if (EdgeCache.TryGetValue(mesh.GetInstanceID(), out var cached)) return cached;
+
+        var verts = mesh.vertices;
+        var tris = mesh.triangles;
+        var seen = new HashSet<long>();
+        var list = new List<MeshEdge>();
+        for (int i = 0; i + 2 < tris.Length; i += 3)
+        {
+            AddEdge(tris[i], tris[i + 1]);
+            AddEdge(tris[i + 1], tris[i + 2]);
+            AddEdge(tris[i + 2], tris[i]);
+        }
+        EdgeCache[mesh.GetInstanceID()] = list.ToArray();
+        return EdgeCache[mesh.GetInstanceID()];
+
+        void AddEdge(int a, int b)
+        {
+            if (a == b) return;
+            long key = a < b ? ((long)a << 32) | (uint)b : ((long)b << 32) | (uint)a;
+            if (seen.Add(key)) list.Add(new MeshEdge { A = verts[a], B = verts[b] });
+        }
+    }
+
+    /// <summary>Draws the triangle preview: the real mesh edge set of each segment's primitive.
+    /// 绘制三角面预览：每段物体的真实网格边集合</summary>
+    private static void DrawPreviewTriangleMeshes(BezierCurve curve)
+    {
+        var pts = curve.SamplePoints();
+        if (pts.Count < 2) return;
+
+        bool is3d = curve.Is3D;
+        List<Vector3> pts3d = null;
+        if (is3d)
+        {
+            pts3d = curve.SamplePoints3D();
+            if (pts3d.Count < 2) return;
+        }
+
+        for (int i = 0; i < pts.Count - 1 && i < curve.Segments.Count; i++)
+        {
+            if (!CurvePlacementHelper.ComputePlacement(curve, i, pts, pts3d, out Vector3 genPos, out Quaternion rot, out Vector3 scale))
+                continue;
+            var seg = curve.Segments[i];
+            if (!TryGetPreviewMesh(seg.PrimitiveType, out var mesh, out var local))
+            {
+                // Unreadable mesh: fall back to the hand-drawn wireframe / 网格不可读：退化为手绘线框
+                Handles.color = PreviewWireColor;
+                DrawWireByType(seg.PrimitiveType, genPos, rot, scale);
+                continue;
+            }
+            var edges = GetMeshEdges(mesh);
+            Handles.color = PreviewWireColor;
+            // One matrix per segment; lines stay in mesh-local space / 每段一个矩阵；线条保持在网格本地空间
+            Handles.matrix = Matrix4x4.TRS(genPos, rot, scale) * local;
+            for (int e = 0; e < edges.Length; e++)
+                Handles.DrawLine(edges[e].A, edges[e].B);
+            Handles.matrix = Matrix4x4.identity;
         }
     }
 
@@ -242,13 +368,36 @@ public static class CurveSceneRenderer
         Handles.matrix = Matrix4x4.identity;
     }
 
-    /// <summary>Capsule preview: native 1×2×1, height = scale.y × 2. / Capsule 预览：原生 1×2×1，高=scale.y*2</summary>
+    /// <summary>Capsule preview: cylinder (diameter 1, height 1) + hemispheres (radius 0.5) at y = ±0.5.
+    /// Capsule 预览：圆柱（直径 1、柱高 1）+ 球心 ±0.5Y、半径 0.5 的上下半球</summary>
     private static void DrawWireCapsuleNative(Vector3 pos, Quaternion rot, Vector3 scale)
     {
-        Vector3 capSize = new Vector3(scale.x, scale.y * 2f, scale.z);
-        Handles.matrix = Matrix4x4.TRS(pos, rot, capSize);
-        Handles.DrawWireCube(Vector3.zero, Vector3.one);
+        Handles.matrix = Matrix4x4.TRS(pos, rot, new Vector3(scale.x, scale.y * 2f, scale.z));
+
+        // Cylinder part: top/bottom discs (y = ±0.5) + 4 vertical lines / 圆柱部分：上下圆盘（y=±0.5）+ 4 条竖线
+        Handles.DrawWireDisc(Vector3.up * 0.5f, Vector3.up, 0.5f);
+        Handles.DrawWireDisc(Vector3.down * 0.5f, Vector3.up, 0.5f);
+        Vector3 r = Vector3.right * 0.5f, f = Vector3.forward * 0.5f;
+        Handles.DrawLine(Vector3.up * 0.5f + r, Vector3.down * 0.5f + r);
+        Handles.DrawLine(Vector3.up * 0.5f - r, Vector3.down * 0.5f - r);
+        Handles.DrawLine(Vector3.up * 0.5f + f, Vector3.down * 0.5f + f);
+        Handles.DrawLine(Vector3.up * 0.5f - f, Vector3.down * 0.5f - f);
+
+        // Upper hemisphere (center +0.5Y) / 上半球（球心 +0.5Y）
+        DrawWireHemisphere(Vector3.up * 0.5f);
+        // Lower hemisphere (center -0.5Y) / 下半球（球心 -0.5Y）
+        DrawWireHemisphere(Vector3.down * 0.5f);
+
         Handles.matrix = Matrix4x4.identity;
+    }
+
+    /// <summary>Draws a hemisphere wireframe (three meridian semicircles, radius 0.5).
+    /// 绘制半球线框（三条经线半圆，半径 0.5）</summary>
+    private static void DrawWireHemisphere(Vector3 center)
+    {
+        Handles.DrawWireArc(center, Vector3.right, Vector3.forward, 180f, 0.5f);
+        Handles.DrawWireArc(center, Vector3.forward, Vector3.right, 180f, 0.5f);
+        Handles.DrawWireArc(center, (Vector3.right + Vector3.forward).normalized, Vector3.forward, 180f, 0.5f);
     }
 
     /// <summary>Cylinder preview: native 1×2×1, deformed by the TRS matrix.
@@ -268,27 +417,53 @@ public static class CurveSceneRenderer
         Handles.matrix = Matrix4x4.identity;
     }
 
-    /// <summary>Plane preview: native 10×1×10, deformed by the TRS matrix.
-    /// Plane 预览：原生 10×1×10，TRS 矩阵统一变形</summary>
+    /// <summary>Plane preview: native 10×1×10 frame + center cross + blue face-normal line (1 local unit).
+    /// Plane 预览：原生 10×1×10 方框 + 中心十字线 + 蓝色面朝向垂线（1 本地单位，法线 +Y）</summary>
     private static void DrawWirePlaneNative(Vector3 pos, Quaternion rot, Vector3 scale)
     {
         Handles.matrix = Matrix4x4.TRS(pos, rot, new Vector3(scale.x * 10f, 1f, scale.z * 10f));
-        // Unit square (half-width 0.5) cross + diagonals / 单位方块（半宽 0.5）的十字 + 对角线
-        Vector3 r = Vector3.right * 0.5f, f = Vector3.forward * 0.5f;
+
+        // Frame (half-width 5) / 方框（半宽 5）
+        Vector3 r = Vector3.right * 5f, f = Vector3.forward * 5f;
+        Handles.DrawLine(r + f, -r + f);
+        Handles.DrawLine(-r + f, -r - f);
+        Handles.DrawLine(-r - f, r - f);
+        Handles.DrawLine(r - f, r + f);
+
+        // Center cross: horizontal + vertical / 中心横线与竖线（十字）
         Handles.DrawLine(-r, r);
         Handles.DrawLine(-f, f);
-        Handles.DrawLine(-r - f, r + f);
-        Handles.DrawLine(r - f, -r + f);
+
+        // Face-normal line (blue, 1 local unit; Plane normal = +Y) / 面朝向垂线（蓝色，1 本地单位；Plane 法线 = +Y）
+        Handles.color = Color.blue;
+        Handles.DrawLine(Vector3.zero, Vector3.up);
+        Handles.color = PreviewWireColor;
+
         Handles.matrix = Matrix4x4.identity;
     }
 
-    /// <summary>Quad preview: native 1×1, cross span = scale. / Quad 预览：原生 1×1，十字线跨距=scale</summary>
+    /// <summary>Quad preview: native 1×1 frame + one diagonal + blue face-normal line (1 local unit).
+    /// Quad 预览：原生 1×1 方框 + 一条对角线 + 蓝色面朝向垂线（1 本地单位，正面朝 -Z）</summary>
     private static void DrawWireQuadNative(Vector3 pos, Quaternion rot, Vector3 scale)
     {
-        Vector3 right = rot * Vector3.right * scale.x * 0.5f;
-        Vector3 up = rot * Vector3.up * scale.y * 0.5f;
-        Handles.DrawLine(pos - right, pos + right);
-        Handles.DrawLine(pos - up, pos + up);
+        Handles.matrix = Matrix4x4.TRS(pos, rot, scale);
+
+        // Frame (half-size 0.5) / 方框（半宽 0.5）
+        Vector3 r = Vector3.right * 0.5f, u = Vector3.up * 0.5f;
+        Handles.DrawLine(r + u, -r + u);
+        Handles.DrawLine(-r + u, -r - u);
+        Handles.DrawLine(-r - u, r - u);
+        Handles.DrawLine(r - u, r + u);
+
+        // One diagonal / 一条对角线
+        Handles.DrawLine(-r - u, r + u);
+
+        // Face-normal line (blue, 1 local unit; Unity Quad faces -Z) / 面朝向垂线（蓝色，1 本地单位；Unity Quad 正面朝 -Z）
+        Handles.color = Color.blue;
+        Handles.DrawLine(Vector3.zero, -Vector3.forward);
+        Handles.color = PreviewWireColor;
+
+        Handles.matrix = Matrix4x4.identity;
     }
 
     // ===== Cursor rendering / 游标渲染 =====

@@ -1,6 +1,17 @@
 using UnityEditor;
 using UnityEngine;
 
+/// <summary>Preview style of generated objects. / 生成物预览样式</summary>
+public enum PreviewStyle
+{
+    /// <summary>Off: no preview wireframes. / 关：不显示预览</summary>
+    Off = 0,
+    /// <summary>Wireframe: hand-drawn outline per primitive. / 线框：各物体的手绘轮廓线框</summary>
+    Wireframe = 1,
+    /// <summary>Triangles: real mesh triangle edges (from the prefab mesh). / 三角面：真实网格三角面边（取自 Prefab 网格）</summary>
+    Triangles = 2,
+}
+
 /// <summary>
 /// Curve Tool — EditorWindow skeleton (fields, lifecycle, persistence, business logic).
 /// 曲线工具 — EditorWindow 主骨架（字段、生命周期、持久化、业务逻辑）。
@@ -11,7 +22,7 @@ public partial class CurveTool : EditorWindow
 {
     private CurveManager _manager;
     private bool _editMode;
-    private bool _previewMode;
+    private PreviewStyle _previewStyle;
 
     private int _selectedTab;
     private string[] _tabs;
@@ -56,7 +67,7 @@ public partial class CurveTool : EditorWindow
 
     // ===== Public properties / 公共属性 =====
     public bool IsEditMode => _editMode;
-    public bool PreviewMode => _previewMode;
+    public PreviewStyle PreviewStyle => _previewStyle;
     public int DefaultSegmentCount => _defaultSegmentCount;
 
     // ===== Default value constants (single source shared by field init, ToolSettings and Reset to avoid drift) / 默认值常量（唯一来源：字段初始化、ToolSettings、重置按钮共用，避免漂移）=====
@@ -192,11 +203,26 @@ public partial class CurveTool : EditorWindow
         GUI.backgroundColor = Color.white;
         if (newEdit != _editMode) { _editMode = newEdit; SceneView.RepaintAll(); }
 
-        // Preview (1/5, a view mode alongside Curve Edit) / 预览（1/5，视图模式与曲线编辑并列）
-        GUI.backgroundColor = _previewMode ? UiPreviewBlue : Color.white;
-        bool newPrev = GUILayout.Toggle(_previewMode, $" {L10n.T("preview")}", "Button", GUILayout.Height(28), GUILayout.Width(previewW));
+        // Preview (1/5, a view mode alongside Curve Edit; cycles Off → Wireframe → Triangles → Off)
+        // 预览（1/5，视图模式与曲线编辑并列；点击循环 关 → 线框 → 三角面 → 关）
+        string previewLabel = _previewStyle switch
+        {
+            PreviewStyle.Wireframe => L10n.T("preview_wire"),
+            PreviewStyle.Triangles => L10n.T("preview_triangles"),
+            _ => L10n.T("preview_off"),
+        };
+        GUI.backgroundColor = _previewStyle switch
+        {
+            PreviewStyle.Wireframe => UiPreviewBlue,
+            PreviewStyle.Triangles => UiCreateGreen,
+            _ => Color.white,
+        };
+        if (GUILayout.Button($" {L10n.T("preview")}: {previewLabel}", "Button", GUILayout.Height(28), GUILayout.Width(previewW)))
+        {
+            _previewStyle = (PreviewStyle)(((int)_previewStyle + 1) % 3);
+            SceneView.RepaintAll();
+        }
         GUI.backgroundColor = Color.white;
-        if (newPrev != _previewMode) { _previewMode = newPrev; SceneView.RepaintAll(); }
 
         EditorGUILayout.EndHorizontal();
     }

@@ -37,7 +37,7 @@ Curve Tool is a **Unity editor tool** that provides Blender-style Bezier curve e
 | `CurveSceneEditor.HitTest.cs` | Hit testing: vertices/handles/arrows (7-pass priority scan), curve spans, micro-segments, cursor |
 | `CurveSceneEditor.MouseEvents.cs` | Mouse/keyboard handling: selection, dragging (incl. batch multi-select), vertex insertion, extension, deletion |
 | `CurveSceneEditor.Utility.cs` | Helpers: mouse→world (plane projection), snapping, geometry utilities (point-line distance, Bezier interpolation) |
-| `CurveSceneRenderer.cs` | SceneView rendering: curve polylines, vertices/handles/arrows, preview wireframes (native primitive sizes), cursor |
+| `CurveSceneRenderer.cs` | SceneView rendering: curve polylines, vertices/handles/arrows, preview (wireframe / triangles, native primitive sizes / real mesh edges), cursor |
 | `CurveObjectBuilder.cs` | Generator: samples the curve, spawns `PrimitiveComponent` per segment, registers Undo, organizes the parent object |
 | `CurvePlacementHelper.cs` | **Placement calculator**: unified per-segment position/rotation/scale math shared by generation and preview (preview = generated) |
 | `L10n.cs` | Static localization dictionary + switching API |
@@ -210,10 +210,11 @@ Hit radii scale with the view (`HandleUtility.GetHandleSize`); with multiple cur
 ## 6. Rendering System (CurveSceneRenderer)
 
 - Registered/unregistered via `CurveSceneRenderer.Register()/Unregister()` (SceneView.duringSceneGui), managed by CurveTool.OnEnable/OnDisable.
-- **Edit mode**: full rendering (curve polyline + vertices/handles + preview wireframes toggle).
-- **Preview mode** (without edit mode): preview wireframes only.
+- **Edit mode**: full rendering (curve polyline + vertices/handles + preview, driven by the three-state `PreviewStyle`: Off / Wireframe / Triangles).
+- **Preview mode** (without edit mode): preview only (wireframe or triangles).
 - Color scheme: curve=white, vertex=black, handle line by type (Auto=green, Aligned=blue, AlignedLength=cyan, Vector=orange, Free=gray), handle end=red, selected=yellow, selected segment=blue, locked=orange; all adjustable in the window/settings.
-- **Preview wireframes use native primitive sizes** (Cube/Sphere 1×1×1, Capsule/Cylinder 1×2×1, Plane 10×1×10, Quad 1×1) transformed by `Matrix4x4.TRS`, matching the real prefab dimensions.
+- **Preview wireframes use native primitive sizes** (Cube/Sphere 1×1×1, Capsule cylinder 1×1×1 + hemispheres, Cylinder 1×2×1, Plane 10×1×10, Quad 1×1) transformed by `Matrix4x4.TRS`, matching the real prefab dimensions; Plane/Quad include a blue face-normal line (1 local unit).
+- **Triangle preview**: reads the mesh from `Resources/Blocks/Primitives/{type}.prefab` (deduplicated edge set cached per mesh), one `Handles.matrix` per segment; falls back to the builtin mesh (New-*.fbx) when unreadable, then to the wireframe.
 - Cursor: wireframe sphere (three rings) + axis-colored arrows, view-scaled.
 
 ---
@@ -255,7 +256,7 @@ Hit radii scale with the view (`HandleUtility.GetHandleSize`); with multiple cur
 
 ## 9. UI Structure (CurveTool)
 
-- Edit tab: `Curve Tools` (flip X/Y/Z, mirror X/Y/Z, cursor reference frame, cursor properties/lock/reset), `Curve List` (create 2D/3D + per-row ○select/D display/E enable/L lock/name/axis/segments/R loop/C copy/✕ delete + delete-all), `Vertex & Handle Properties` (position + per-axis locks, handle type, left/right handle positions), `Segment Properties` (base primitive/base scale/center offset/fit segment length/relative scale/rotation offset/position offset; batch-applied to all selected segments), `Generate Objects` (color + Generate + Preview toggle).
+- Edit tab: `Curve Tools` (flip X/Y/Z, mirror X/Y/Z, cursor reference frame, cursor properties/lock/reset), `Curve List` (create 2D/3D + per-row ○select/D display/E enable/L lock/name/axis/segments/R loop/C copy/✕ delete + delete-all), `Vertex & Handle Properties` (position + per-axis locks, handle type, left/right handle positions), `Segment Properties` (base primitive/base scale/center offset/fit segment length/relative scale/rotation offset/position offset; batch-applied to all selected segments), `Generate Objects` (color + Generate + three-state Preview: Off/Wireframe/Triangles).
 - Settings tab: size (vertex/handle/arrow), snapping (grid/increment), colors (vertex/handle end), language, reset-to-default.
 
 ---
