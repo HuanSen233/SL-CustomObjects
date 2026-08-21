@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using DONT_TOUCH.Enums;
-using DONT_TOUCH.Scripts.BlockSerialization;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -112,18 +111,6 @@ public abstract class SchematicBlock : MonoBehaviour
         {
             children[i].position = worldPositions[i];
             children[i].rotation = worldRotations[i];
-        }
-    }
-
-    private void LockChildrenRecursive(Transform parent)
-    {
-        foreach (Transform child in parent)
-        {
-            if (child.TryGetComponent<SchematicBlock>(out _))
-                continue;
-            child.gameObject.hideFlags |= HideFlags.NotEditable;
-
-            LockChildrenRecursive(child);
         }
     }
 }
