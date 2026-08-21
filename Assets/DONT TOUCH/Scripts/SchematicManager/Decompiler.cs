@@ -157,6 +157,10 @@ public static class Decompiler
 			return null;
 
 		GameObject gameObject = null;
+		if (block.Properties == null)
+		{
+			block.Properties = new();
+		}
 
 		if (_schematicBuilder.TryGetBlockFromType(block.BlockType, out SchematicBlock schematicBlock))
 		{
