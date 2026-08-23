@@ -48,6 +48,14 @@ public static partial class CurveSceneEditor
                 {
                     if (m.Curves[hit.curveIndex].IsLocked) { e.Use(); return; }
                     m.Select(hit.curveIndex, hit.vertexIndex, hit.subElement, shift);
+                    if (w.UseMoveTool && Tools.current == Tool.Move)
+                    {
+                        // Move-tool editing: select only (so the PositionHandle shows); do NOT set _isDragging
+                        // and do NOT consume the event, letting the PositionHandle take over the drag.
+                        // 移动工具编辑：仅选中（使 PositionHandle 显示）；不进入自写拖拽、不消费事件，让 PositionHandle 接管拖拽。
+                        w.Repaint();
+                        return;
+                    }
                     _isDragging = true;
                     _undoRecorded = false;
                     _dragStartMouse = GetMouseWorldPos(e, w);
@@ -225,9 +233,10 @@ public static partial class CurveSceneEditor
         }
 
         if (!_isDragging) return;
-        // Move-tool editing enabled: vertex/handle movement is delegated to the Unity Move tool (PositionHandle),
-        // so suppress the built-in drag here. / 移动工具编辑启用：顶点/控制柄移动交由 Unity 移动工具（PositionHandle）处理，屏蔽自写拖拽
-        if (w.UseMoveTool && Tools.current == Tool.Move) { e.Use(); return; }
+        // Move-tool editing enabled: vertex/handle movement is delegated to the Unity Move tool (PositionHandle).
+        // Do not consume the event, so the PositionHandle can receive the drag.
+        // 移动工具编辑启用：顶点/控制柄移动交由 Unity 移动工具（PositionHandle）处理；不消费事件，让 PositionHandle 收到拖拽。
+        if (w.UseMoveTool && Tools.current == Tool.Move) { return; }
         var vertex = m.SelectedVertex;
         if (vertex == null) return;
 

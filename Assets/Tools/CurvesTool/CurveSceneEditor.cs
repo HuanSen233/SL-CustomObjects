@@ -79,10 +79,14 @@ public static partial class CurveSceneEditor
 
         Event e = Event.current;
         int cid = GUIUtility.GetControlID(FocusType.Passive);
+        bool moveEdit = w.UseMoveTool && Tools.current == Tool.Move;
 
         // Consume events in edit mode to block default scene selection/orbit operations.
-        // 编辑模式下始终消耗事件，阻止 Unity 默认场景选择/轨道操作
-        HandleUtility.AddDefaultControl(cid);
+        // 编辑模式下始终消耗事件，阻止 Unity 默认场景选择/轨道操作。
+        // Move-tool editing is an exception: AddDefaultControl would starve the PositionHandle,
+        // so skip it there and let the Move tool gizmo take the interaction.
+        // 移动工具编辑例外：AddDefaultControl 会抢占 PositionHandle，故此处跳过，让移动工具 Gizmo 接管交互。
+        if (!moveEdit) HandleUtility.AddDefaultControl(cid);
 
         switch (e.type)
         {
@@ -95,7 +99,7 @@ public static partial class CurveSceneEditor
 
         // Move-tool editing: when enabled and the Move tool (W) is active, drive the selected vertex/handle via a PositionHandle.
         // 移动工具编辑：启用且处于移动工具（W）时，用 PositionHandle 驱动选中顶点/控制柄
-        if (w.UseMoveTool && Tools.current == Tool.Move)
+        if (moveEdit)
             DrawMoveToolHandles(m);
     }
 
