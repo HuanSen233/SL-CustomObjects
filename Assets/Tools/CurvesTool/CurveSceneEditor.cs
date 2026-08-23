@@ -127,9 +127,11 @@ public static partial class CurveSceneEditor
             default: target = MoveHandleTarget.Vertex; worldPos = vertexWorld; break;
         }
 
-        // Align the handle to the editing plane for 2D curves so it does not pull vertices out of plane.
-        // 2D 曲线对手柄对齐编辑平面，避免把顶点拉出平面
-        Quaternion rot = is3d ? Quaternion.identity : Quaternion.LookRotation(curve.PlaneNormal);
+        // Handle rotation respects the Unity coordinate system: Global/world axis → identity (no plane tilt, no degenerate
+        // LookRotation); Local → a stable plane-facing rotation (tangent forward + plane normal up) that never degenerates.
+        // 手柄朝向尊重 Unity 坐标系：世界坐标（Global）→ identity（不随曲线平面转、LookRotation 不退化）；
+        // 局部坐标（Local）→ 稳定的贴平面朝向（切线作 forward、平面法线作 up），且避免 LookRotation 退化。
+        Quaternion rot = GetMoveHandleRotation(curve, is3d);
         EditorGUI.BeginChangeCheck();
         Vector3 newPos = Handles.PositionHandle(worldPos, rot);
         if (EditorGUI.EndChangeCheck())
@@ -141,6 +143,23 @@ public static partial class CurveSceneEditor
             SceneView.RepaintAll();
             CurveTool.Instance?.Repaint();
         }
+    }
+
+    /// <summary>Computes the PositionHandle rotation: world axis for Global/3D, a stable plane-facing orientation for Local 2D.
+    /// 计算 PositionHandle 的朝向：Global/3D 用世界轴；Local 2D 用贴合平面且不退化的稳定朝向。</summary>
+    private static Quaternion GetMoveHandleRotation(BezierCurve curve, bool is3d)
+    {
+        if (is3d || Tools.pivotRotation == PivotRotation.Global) return Quaternion.identity;
+        // Local + 2D: local-forward = first micro-segment tangent, local-up = plane normal.
+        // 局部 + 2D：局部 forward = 第一小段切线，局部 up = 平面法线。
+        var pts = curve.SamplePoints();
+        Vector3 fwd = pts.Count >= 2 ? curve.MapToWorld(pts[1]) - curve.MapToWorld(pts[0]) : Vector3.zero;
+        Vector3 n = curve.PlaneNormal;
+        if (fwd.sqrMagnitude < 1e-8f) fwd = n;
+        // Forward parallel to the plane normal would degenerate LookRotation; fall back to world axis.
+        // forward 与平面法线平行会令 LookRotation 退化；回退到世界轴。
+        if (Mathf.Abs(Vector3.Dot(fwd.normalized, n)) > 0.999f) return Quaternion.identity;
+        return Quaternion.LookRotation(fwd.normalized, n);
     }
 
     /// <summary>Writes a move-handle drag result back to vertex/handle data (per-axis locks preserved).
