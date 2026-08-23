@@ -114,6 +114,12 @@ public static partial class CurveSceneEditor
                         }
                         else
                         {
+                            // Move-tool editing: a click outside the curve elements (e.g. on the move-handle axis
+                            // arrows) must NOT clear the selection, otherwise the move handle disappears and its
+                            // arrows can never be clicked. Leave the event to the PositionHandle.
+                            // 移动工具编辑：点击曲线元素之外（如移动手柄的轴箭头）不能清空选中，否则移动手柄消失、
+                            // 轴箭头永远无法点选；事件留给 PositionHandle。
+                            if (w.UseMoveTool && Tools.current == Tool.Move) { return; }
                             m.ClearSelection();
                             _isDragging = false;
                             e.Use();
