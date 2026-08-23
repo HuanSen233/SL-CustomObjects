@@ -195,12 +195,12 @@ public class CurveManager : MonoBehaviour
     // ===== Data operations / 数据操作 =====
 
     /// <summary>Adds a new curve with 2D/3D initialization. / 添加新曲线，支持 2D/3D 初始化</summary>
-    public BezierCurve AddNewCurve(string name = "NewCurve", int segmentCount = 16, UpAxis upAxis = UpAxis.Y)
+    public BezierCurve AddNewCurve(string name = "NewCurve", int segmentCount = 16, CurvePlane plane = CurvePlane.XZ)
     {
         Undo.RecordObject(this, "添加曲线");
         var curve = BezierCurve.CreateDefault(name);
         curve.SegmentCount = Mathf.Max(1, segmentCount);
-        curve.UpAxis = upAxis;
+        curve.Plane = plane;
         curve.RebuildSegments();
         curve.RecalculateHandles();
         Curves.Add(curve);

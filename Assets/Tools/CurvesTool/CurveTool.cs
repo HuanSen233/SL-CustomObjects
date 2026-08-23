@@ -234,15 +234,15 @@ public partial class CurveTool : EditorWindow
 
     // ===== Business logic / 业务逻辑 =====
 
-    /// <summary>Creates a new curve with the given up axis. / 用指定轴向创建新曲线</summary>
-    private void CreateNewCurve(UpAxis upAxis)
+    /// <summary>Creates a new curve on the given world plane. / 用指定世界平面创建新曲线</summary>
+    private void CreateNewCurve(CurvePlane plane)
     {
         string baseName = string.IsNullOrWhiteSpace(_newCurveName) ? "NewCurve" : _newCurveName;
         string finalName = baseName;
         int dedup = 1;
         while (_manager.Curves.Exists(c => c.Name == finalName))
             finalName = $"{baseName}{dedup++}";
-        var newCurve = _manager.AddNewCurve(finalName, _defaultSegmentCount, upAxis);
+        var newCurve = _manager.AddNewCurve(finalName, _defaultSegmentCount, plane);
         newCurve.RecalculateHandles();
         _newCurveName = "NewCurve";
         SceneView.RepaintAll();

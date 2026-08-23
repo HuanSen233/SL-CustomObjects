@@ -131,7 +131,7 @@ public static partial class CurveSceneEditor
             if (ch.curveIndex >= 0 && ch.segmentIndex >= 0 && !m.Curves[ch.curveIndex].IsLocked)
             {
                 var curve = m.Curves[ch.curveIndex];
-                Vector2 ip = GetMouseWorldPos(e, w, curve.UpAxis);
+                Vector2 ip = GetMouseWorldPos(e, w, curve.Plane);
                 // Clear the curve selection state first / 先清理曲线选中状态
                 curve.IsSelected = false;
                 foreach (var v in curve.Vertices) { v.IsSelected = false; v.SelectedSubElement = 0; }

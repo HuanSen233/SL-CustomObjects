@@ -99,9 +99,9 @@ public partial class CurveTool
     /// 绘制 X/Y/Z 三个轴向按钮（按曲线编辑平面禁用不可翻转的轴），返回 X 轴点击结果</summary>
     private bool DrawAxisButtons(BezierCurve sel, out bool clickedY, out bool clickedZ)
     {
-        bool canX = sel == null || sel.UpAxis != UpAxis.X || sel.Is3D;
-        bool canY = sel == null || sel.UpAxis != UpAxis.Y || sel.Is3D;
-        bool canZ = sel == null || sel.UpAxis != UpAxis.Z || sel.Is3D;
+        bool canX = sel == null || sel.Plane != CurvePlane.YZ || sel.Is3D;
+        bool canY = sel == null || sel.Plane != CurvePlane.XZ || sel.Is3D;
+        bool canZ = sel == null || sel.Plane != CurvePlane.XY || sel.Is3D;
 
         EditorGUI.BeginDisabledGroup(!canX);
         bool x = GUILayout.Button("X", GUILayout.Height(22));
@@ -260,21 +260,23 @@ public partial class CurveTool
 
         // Vertex position + axis locks / 顶点位置 + 轴锁
         bool is3dCurve = vertex != null && _manager.SelectedCurve != null && _manager.SelectedCurve.Is3D;
+        var selPlane = _manager.SelectedCurve?.Plane ?? CurvePlane.XZ;
+        GetPlaneAxisLabels(selPlane, is3dCurve, out string axisA, out string axisNormal, out string axisB);
         EditorGUI.BeginChangeCheck();
         EditorGUILayout.BeginHorizontal();
         GUILayout.Label(L10n.T("vertex_position"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
-        DrawVertexAxisLock("X", ref _vertexLockX, ref _vertexPosition.x);
+        DrawVertexAxisLock(axisA, ref _vertexLockX, ref _vertexPosition.x);
         GUILayout.Space(4);
-        // Y axis (height): grayed out for 2D, editable for 3D / Y 轴（高度/Height）：2D 灰显，3D 解锁
+        // Normal axis (height): grayed out for 2D, editable for 3D / 法线轴（高度/Height）：2D 灰显，3D 解锁
         if (is3dCurve)
-            DrawVertexAxisLock("Y", ref _vertexLockZ, ref _vertexHeight);
+            DrawVertexAxisLock(axisNormal, ref _vertexLockZ, ref _vertexHeight);
         else
         {
-            DrawYAxis2DPlaceholder();
+            DrawYAxis2DPlaceholder(axisNormal);
         }
         GUILayout.Space(4);
-        // Z axis (plane) / Z 轴（平面）
-        DrawVertexAxisLock("Z", ref _vertexLockY, ref _vertexPosition.y);
+        // Second plane axis / 平面第二轴
+        DrawVertexAxisLock(axisB, ref _vertexLockY, ref _vertexPosition.y);
         EditorGUILayout.EndHorizontal();
         if (EditorGUI.EndChangeCheck() && vertex != null)
         {
@@ -347,6 +349,8 @@ public partial class CurveTool
     private void DrawHandlePosition(CurveVertex vertex, bool is3d)
     {
         EditorGUI.BeginDisabledGroup(vertex == null);
+        var hp = _manager.SelectedCurve?.Plane ?? CurvePlane.XZ;
+        GetPlaneAxisLabels(hp, is3d, out string hA, out string hN, out string hB);
 
         if (vertex != null)
         {
@@ -367,18 +371,18 @@ public partial class CurveTool
         EditorGUI.BeginChangeCheck();
         EditorGUILayout.BeginHorizontal();
         GUILayout.Label(L10n.T("left_handle"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
-        DrawVertexAxisLock("X", ref _leftHandleLockX, ref _leftHandlePos.x);
+        DrawVertexAxisLock(hA, ref _leftHandleLockX, ref _leftHandlePos.x);
         GUILayout.Space(4);
-        // Y axis (height offset) / Y 轴（高度偏移）
+        // Normal axis (height offset) / 法线轴（高度偏移）
         if (is3d)
-            DrawVertexAxisLock("Y", ref _leftHandleLockZ, ref _leftHandleHeight);
+            DrawVertexAxisLock(hN, ref _leftHandleLockZ, ref _leftHandleHeight);
         else
         {
-            DrawYAxis2DPlaceholder();
+            DrawYAxis2DPlaceholder(hN);
         }
         GUILayout.Space(4);
-        // Z axis (plane offset) / Z 轴（平面偏移）
-        DrawVertexAxisLock("Z", ref _leftHandleLockY, ref _leftHandlePos.y);
+        // Second plane axis / 平面第二轴
+        DrawVertexAxisLock(hB, ref _leftHandleLockY, ref _leftHandlePos.y);
         if (EditorGUI.EndChangeCheck() && vertex != null)
         {
             Undo.RecordObject(_manager, "修改左柄位置");
@@ -399,18 +403,18 @@ public partial class CurveTool
         EditorGUI.BeginChangeCheck();
         EditorGUILayout.BeginHorizontal();
         GUILayout.Label(L10n.T("right_handle"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
-        DrawVertexAxisLock("X", ref _rightHandleLockX, ref _rightHandlePos.x);
+        DrawVertexAxisLock(hA, ref _rightHandleLockX, ref _rightHandlePos.x);
         GUILayout.Space(4);
-        // Y axis (height offset) / Y 轴（高度偏移）
+        // Normal axis (height offset) / 法线轴（高度偏移）
         if (is3d)
-            DrawVertexAxisLock("Y", ref _rightHandleLockZ, ref _rightHandleHeight);
+            DrawVertexAxisLock(hN, ref _rightHandleLockZ, ref _rightHandleHeight);
         else
         {
-            DrawYAxis2DPlaceholder();
+            DrawYAxis2DPlaceholder(hN);
         }
         GUILayout.Space(4);
-        // Z axis (plane offset) / Z 轴（平面偏移）
-        DrawVertexAxisLock("Z", ref _rightHandleLockY, ref _rightHandlePos.y);
+        // Second plane axis / 平面第二轴
+        DrawVertexAxisLock(hB, ref _rightHandleLockY, ref _rightHandlePos.y);
         if (EditorGUI.EndChangeCheck() && vertex != null)
         {
             Undo.RecordObject(_manager, "修改右柄位置");
@@ -431,17 +435,31 @@ public partial class CurveTool
         GUILayout.Space(2);
     }
 
-    /// <summary>Grayed-out placeholder for the 2D curve Y (height) axis: no height to edit, gray styling hints at 2D mode.
-    /// 2D 曲线 Y 轴（高度）灰显占位：无高度轴可编辑，用置灰样式提示 2D 模式</summary>
-    private void DrawYAxis2DPlaceholder()
+    /// <summary>Grayed-out placeholder for the 2D curve's normal (height) axis: no height to edit, gray styling hints at 2D mode.
+    /// 2D 曲线的法线（高度）轴灰显占位：无高度轴可编辑，用置灰样式提示 2D 模式</summary>
+    private void DrawYAxis2DPlaceholder(string axisName)
     {
         GUI.backgroundColor = UiPlaceholderGray;
         GUILayout.Label("L", GUILayout.Width(20), GUILayout.Height(18));
         GUI.backgroundColor = Color.white;
-        GUILayout.Label("Y", GUILayout.Width(12));
+        GUILayout.Label(axisName, GUILayout.Width(12));
         EditorGUI.BeginDisabledGroup(true);
         EditorGUILayout.TextField("2D", GUILayout.MinWidth(30));
         EditorGUI.EndDisabledGroup();
+    }
+
+    /// <summary>Plane-aware axis labels: axisA/axisB are the two editable plane axes (map to Position.x/.y);
+    /// axisNormal is the plane normal (the grayed "height" for 2D, the editable world-Y height for 3D).
+    /// 依平面的轴标签：axisA/axisB 为平面内两个可编辑轴（对应 Position.x/.y）；axisNormal 为平面法线（2D 下灰显高度，3D 下世界 Y 高度）。</summary>
+    private void GetPlaneAxisLabels(CurvePlane plane, bool is3d, out string axisA, out string axisNormal, out string axisB)
+    {
+        if (is3d) { axisA = "X"; axisNormal = "Y"; axisB = "Z"; return; } // 3D：X / 高度Y / Z
+        switch (plane)
+        {
+            case CurvePlane.XY: axisA = "X"; axisNormal = "Z"; axisB = "Y"; break;
+            case CurvePlane.YZ: axisA = "Y"; axisNormal = "X"; axisB = "Z"; break;
+            default: axisA = "X"; axisNormal = "Y"; axisB = "Z"; break; // XZ
+        }
     }
 
     /// <summary>Draws a lock button + label + float field (shared by vertices/handles/cursor).
@@ -472,10 +490,10 @@ public partial class CurveTool
         _newCurveName = EditorGUILayout.TextField(_newCurveName, GUILayout.MinWidth(60));
         _defaultSegmentCount = Mathf.Clamp(EditorGUILayout.IntField(_defaultSegmentCount, GUILayout.Width(36)), 1, 256);
 
-        // 2D button: creates a UpAxis.Y curve directly / 2D 按钮：直接创建 UpAxis.Y 曲线
+        // 2D button: creates a curve on the XZ plane by default / 2D 按钮：默认在 XZ 平面创建曲线
         GUI.backgroundColor = UiCreateGreen;
         if (GUILayout.Button("2D", GUILayout.Width(45)))
-            CreateNewCurve(UpAxis.Y);
+            CreateNewCurve(CurvePlane.XZ);
 
         // 3D button: creates a 3D curve / 3D 按钮：创建 3D 曲线
         GUI.backgroundColor = UiCreateBlue;
@@ -527,7 +545,7 @@ public partial class CurveTool
             string nn = EditorGUILayout.TextField(curve.Name, GUILayout.MinWidth(44));
             if (nn != curve.Name) { Undo.RecordObject(_manager, "重命名"); curve.Name = nn; _manager.MarkDirty(); }
 
-            // Up axis (3D curves show a grayed-out "3D") / 轴向（3D 曲线灰显为 "3D"）
+            // World plane (3D curves show a grayed-out "3D") / 平面（3D 曲线灰显为 "3D"）
             EditorGUI.BeginDisabledGroup(!_editMode || curve.Is3D);
             if (curve.Is3D)
             {
@@ -535,8 +553,8 @@ public partial class CurveTool
             }
             else
             {
-                var np = (UpAxis)EditorGUILayout.EnumPopup(curve.UpAxis, GUILayout.Width(42));
-                if (np != curve.UpAxis) { Undo.RecordObject(_manager, "轴向"); curve.UpAxis = np; _manager.MarkDirty(); SceneView.RepaintAll(); }
+                var np = (CurvePlane)EditorGUILayout.EnumPopup(curve.Plane, GUILayout.Width(42));
+                if (np != curve.Plane) { Undo.RecordObject(_manager, "平面"); curve.Plane = np; _manager.MarkDirty(); SceneView.RepaintAll(); }
             }
             EditorGUI.EndDisabledGroup();
             // Segment count (clamped 1..256 to avoid huge SegmentInfo lists or overflow) / 线段数（限制 1..256，避免生成海量 SegmentInfo 或越界）

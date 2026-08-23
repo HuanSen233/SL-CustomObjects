@@ -91,7 +91,7 @@ public static partial class CurveSceneEditor
                 if (unselOnly && c.IsLocked) continue;
                 // Project the mouse onto each curve's own editing plane (prevents cross-hits when axes differ)
         // 按当前曲线自身的编辑平面投影鼠标（多曲线轴向不同时命中不串位）
-                mp = GetMouseWorldPos(e, w, c.UpAxis);
+                mp = GetMouseWorldPos(e, w, c.Plane);
                 for (int vi = 0; vi < c.Vertices.Count; vi++)
                 {
                     var v = c.Vertices[vi];
@@ -130,7 +130,7 @@ public static partial class CurveSceneEditor
             }
             else
             {
-                Vector2 mp = GetMouseWorldPos(e, w, c.UpAxis);
+                Vector2 mp = GetMouseWorldPos(e, w, c.Plane);
                 for (int s = 0; s < spans; s++)
                 {
                     var v0 = c.Vertices[s];
@@ -174,7 +174,7 @@ public static partial class CurveSceneEditor
             else
             {
                 var pts = c.SamplePoints();
-                Vector2 mp = GetMouseWorldPos(e, w, c.UpAxis);
+                Vector2 mp = GetMouseWorldPos(e, w, c.Plane);
                 for (int i = 0; i < pts.Count - 1 && i < c.Segments.Count; i++)
                 {
                     Vector2 mid = (pts[i] + pts[i + 1]) * 0.5f;

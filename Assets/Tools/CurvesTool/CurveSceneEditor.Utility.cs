@@ -8,20 +8,20 @@ using UnityEngine;
 /// </summary>
 public static partial class CurveSceneEditor
 {
-    /// <summary>Mouse → world position projected onto the curve's editing plane (falls back to the selected curve's axis).
-    /// 鼠标 → 世界坐标，投影到指定曲线的编辑平面（未指定时用选中曲线的轴向）</summary>
-    private static Vector2 GetMouseWorldPos(Event e, CurveTool w, UpAxis? upAxisOverride = null)
+    /// <summary>Mouse → world position projected onto the curve's editing plane (falls back to the selected curve's plane).
+    /// 鼠标 → 世界坐标，投影到指定曲线的编辑平面（未指定时用选中曲线的平面）</summary>
+    private static Vector2 GetMouseWorldPos(Event e, CurveTool w, CurvePlane? planeOverride = null)
     {
         Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
         // Prefer the given curve / selected curve's plane / 优先使用指定曲线/选中曲线的平面
         var m = CurveManager.Instance;
-        UpAxis upAxis = upAxisOverride ?? m?.SelectedCurve?.UpAxis ?? UpAxis.Y;
+        CurvePlane plane = planeOverride ?? m?.SelectedCurve?.Plane ?? CurvePlane.XZ;
 
-        Vector3 normal = upAxis switch
+        Vector3 normal = plane switch
         {
-            UpAxis.Y => Vector3.up,
-            UpAxis.Z => Vector3.forward,
-            UpAxis.X => Vector3.right,
+            CurvePlane.XZ => Vector3.up,
+            CurvePlane.XY => Vector3.forward,
+            CurvePlane.YZ => Vector3.right,
             _ => Vector3.up,
         };
 
@@ -29,11 +29,11 @@ public static partial class CurveSceneEditor
         if (p.Raycast(ray, out float dist))
         {
             Vector3 hit = ray.GetPoint(dist);
-            return upAxis switch
+            return plane switch
             {
-                UpAxis.Y => new Vector2(hit.x, hit.z),
-                UpAxis.Z => new Vector2(hit.x, hit.y),
-                UpAxis.X => new Vector2(hit.y, hit.z),
+                CurvePlane.XZ => new Vector2(hit.x, hit.z),
+                CurvePlane.XY => new Vector2(hit.x, hit.y),
+                CurvePlane.YZ => new Vector2(hit.y, hit.z),
                 _ => new Vector2(hit.x, hit.z),
             };
         }
@@ -45,11 +45,11 @@ public static partial class CurveSceneEditor
         if (fallback.Raycast(ray, out float dist2))
         {
             Vector3 hit = ray.GetPoint(dist2);
-            return upAxis switch
+            return plane switch
             {
-                UpAxis.Y => new Vector2(hit.x, hit.z),
-                UpAxis.Z => new Vector2(hit.x, hit.y),
-                UpAxis.X => new Vector2(hit.y, hit.z),
+                CurvePlane.XZ => new Vector2(hit.x, hit.z),
+                CurvePlane.XY => new Vector2(hit.x, hit.y),
+                CurvePlane.YZ => new Vector2(hit.y, hit.z),
                 _ => new Vector2(hit.x, hit.z),
             };
         }
