@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using DONT_TOUCH.Enums;
-using DONT_TOUCH.Scripts.BlockSerialization;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -106,24 +105,26 @@ public abstract class SchematicBlock : MonoBehaviour
             worldRotations[i] = children[i].rotation;
         }
 
+#if UNITY_EDITOR
+        Undo.SetCurrentGroupName("Center Pivot To Children");
+        int undoGroup = Undo.GetCurrentGroup();
+
+        Undo.RecordObject(transform, "Center Pivot To Children");
+#endif
+
         transform.position = center;
 
         for (int i = 0; i < children.Length; i++)
         {
+#if UNITY_EDITOR
+            Undo.RecordObject(children[i], "Center Pivot To Children");
+#endif
             children[i].position = worldPositions[i];
             children[i].rotation = worldRotations[i];
         }
-    }
 
-    private void LockChildrenRecursive(Transform parent)
-    {
-        foreach (Transform child in parent)
-        {
-            if (child.TryGetComponent<SchematicBlock>(out _))
-                continue;
-            child.gameObject.hideFlags |= HideFlags.NotEditable;
-
-            LockChildrenRecursive(child);
-        }
+#if UNITY_EDITOR
+        Undo.CollapseUndoOperations(undoGroup);
+#endif
     }
 }
