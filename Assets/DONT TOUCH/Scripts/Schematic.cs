@@ -6,8 +6,10 @@ using DONT_TOUCH.Enums;
 using DONT_TOUCH.Scripts;
 using DONT_TOUCH.Scripts.BlockComponents;
 using DONT_TOUCH.Scripts.BlockSerialization;
+using TMPro;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UI;
 
 #pragma warning disable CS0618
 
@@ -135,7 +137,15 @@ public class Schematic : SchematicBlock
     {
         foreach (var target in GetComponentsInChildren<Transform>())
         {
+            if (target.hideFlags.HasFlag(HideFlags.NotEditable))
+                continue;
+            
             if (target.TryGetComponent<SchematicBlock>(out _) || target.TryGetComponent<IgnoreObject>(out _))
+            {
+                continue;
+            }
+            
+            if (target.TryGetComponent<Text>(out _) || target.TryGetComponent<TMP_SubMesh>(out _))
             {
                 continue;
             }
@@ -148,6 +158,23 @@ public class Schematic : SchematicBlock
 
             if (target.TryGetComponent<MeshRenderer>(out var meshRenderer) && target.TryGetComponent<MeshFilter>(out var meshFilter))
             {
+                var tagTarget = meshFilter.sharedMesh.name.ToLower() switch
+                {
+                    "cube" => "Cube",
+                    "sphere" => "Sphere",
+                    "capsule" => "Capsule",
+                    "cylinder" => "Cylinder",
+                    "plane" => "Plane",
+                    "quad" => "Quad",
+                    _ => null
+                };
+                
+                if (string.IsNullOrEmpty(tagTarget))
+                {
+                    continue;
+                }
+
+                target.gameObject.tag = tagTarget;
                 var primitiveComponent = target.gameObject.AddComponent<PrimitiveComponent>();
                 if (target.TryGetComponent(out Collider col))
                 {
@@ -157,16 +184,7 @@ public class Schematic : SchematicBlock
                 {
                     primitiveComponent.Collidable = false;
                 }
-                target.gameObject.tag = meshFilter.sharedMesh.name.ToLower() switch
-                {
-                    "cube" => "Cube",
-                    "sphere" => "Sphere",
-                    "capsule" => "Capsule",
-                    "cylinder" => "Cylinder",
-                    "plane" => "Plane",
-                    "quad" => "Quad",
-                    _ => target.gameObject.tag
-                };
+
                 primitiveComponent.Color = meshRenderer.sharedMaterial.color;
                 continue;
             }
