@@ -191,6 +191,21 @@ public static partial class CurveSceneEditor
             case MoveHandleTarget.RightHandle:
                 Vector3 offset = newPos - vertexWorld;
                 bool isLeft = target == MoveHandleTarget.LeftHandle;
+                // Dragging Auto/Vector/Aligned/Mirror handles auto-switches them to Free (same as the tool's built-in drag),
+                // so the automatic recomputation does not override the manual move.
+                // 拖拽 Auto/Vector/Aligned/Mirror 柄自动切为 Free（与工具自带拖拽一致），避免自动计算覆盖手动移动。
+                if (isLeft)
+                {
+                    if (vertex.HandleTypeA == HandleType.Auto || vertex.HandleTypeA == HandleType.Vector ||
+                        vertex.HandleTypeA == HandleType.AlignedLength || vertex.HandleTypeA == HandleType.Aligned)
+                        vertex.HandleTypeA = HandleType.Free;
+                }
+                else
+                {
+                    if (vertex.HandleTypeB == HandleType.Auto || vertex.HandleTypeB == HandleType.Vector ||
+                        vertex.HandleTypeB == HandleType.AlignedLength || vertex.HandleTypeB == HandleType.Aligned)
+                        vertex.HandleTypeB = HandleType.Free;
+                }
                 if (is3d)
                 {
                     if (isLeft)
