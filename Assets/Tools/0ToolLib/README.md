@@ -1,8 +1,8 @@
-# ToolLib —— 运行库
+# 0ToolLib —— 运行库
 
 > 存放 `Assets/Tools/` 下各工具**可复用的通用逻辑**（纯数据/数学、通用机制、编辑器交互框架）。
 > 工具特定的代码（UI 控件、业务逻辑）留在各自工具目录。
-> 迁移计划见 `../MIGRATION_PLAN_ToolLib_zhCN.md`（内部文档，不提交）。
+> 迁移计划见 `../MIGRATION_PLAN_0ToolLib_zhCN.md`（内部文档，不提交）。
 
 ## 层级约定
 
@@ -12,7 +12,7 @@
 | `Editor/` | 编辑器功能（SceneView 交互框架、绘制 helper） | 依赖 `UnityEditor`，可引用 `ToolLib.Runtime`；**不得反向引用任何工具** |
 
 - **依赖方向**：工具 → 运行库（单向），运行库绝不引用工具。
-- **命名空间**：`ToolLib`（Runtime）/ `ToolLib.Editor`（Editor）；新代码一律带命名空间。
+- **命名空间**：`ToolLib`（Runtime）/ `ToolLib.Editor`（Editor）。文件夹名为 `0ToolLib`（C# 标识符不能以数字开头，故命名空间用 `ToolLib`）。
   > 历史迁移代码（如从 CurvesTool 移入的 `BezierCurve` 等）当前**保持全局命名空间**以兼容 Unity 场景序列化，命名空间化是独立任务（见迁移计划 §6）。
 - **程序集**：当前随项目编译进 `Assembly-CSharp`（项目无 asmdef）；本库暂不建 asmdef。
 
