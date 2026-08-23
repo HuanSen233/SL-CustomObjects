@@ -26,7 +26,6 @@ public class Schematic : SchematicBlock
     public void CompileSchematic()
     {
         SetupOutput(out string schematicDirectoryPath);
-        CheckEmptyObjects();
         
         int rootObjectId = transform.GetInstanceID();
         BlockList.RootObjectId = rootObjectId;
@@ -133,7 +132,7 @@ public class Schematic : SchematicBlock
         // return false;
     }
 
-    private void CheckEmptyObjects()
+    public void AutoAssignComponentsToChildren()
     {
         foreach (var target in GetComponentsInChildren<Transform>())
         {
@@ -152,7 +151,7 @@ public class Schematic : SchematicBlock
 
             if (target.TryGetComponent<Light>(out _))
             {
-                target.gameObject.AddComponent<LightComponent>();
+                Undo.AddComponent<LightComponent>(target.gameObject);
                 continue;
             }
 
@@ -174,11 +173,15 @@ public class Schematic : SchematicBlock
                     continue;
                 }
 
+                Undo.RecordObject(target.gameObject, "Set tag");
                 target.gameObject.tag = tagTarget;
-                var primitiveComponent = target.gameObject.AddComponent<PrimitiveComponent>();
+                
+                var primitiveComponent = Undo.AddComponent<PrimitiveComponent>(target.gameObject);
+                Undo.RecordObject(primitiveComponent, "Set primitive data");
+                
                 if (target.TryGetComponent(out Collider col))
                 {
-                    GameObject.DestroyImmediate(col);
+                    Undo.DestroyObjectImmediate(col);
                 }
                 else
                 {
@@ -189,7 +192,7 @@ public class Schematic : SchematicBlock
                 continue;
             }
 
-            target.gameObject.AddComponent<EmptyComponent>();
+            Undo.AddComponent<EmptyComponent>(target.gameObject);
         }
     }
 
