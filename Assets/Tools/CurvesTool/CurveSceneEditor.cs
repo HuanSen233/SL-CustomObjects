@@ -92,5 +92,116 @@ public static partial class CurveSceneEditor
             case EventType.KeyDown: HandleKeyDown(e, m); break;
             case EventType.ScrollWheel: break;
         }
+
+        // Move-tool editing: when enabled and the Move tool (W) is active, drive the selected vertex/handle via a PositionHandle.
+        // 移动工具编辑：启用且处于移动工具（W）时，用 PositionHandle 驱动选中顶点/控制柄
+        if (w.UseMoveTool && Tools.current == Tool.Move)
+            DrawMoveToolHandles(m);
+    }
+
+    /// <summary>Which element the move handle is targeting. / 移动手柄目标元素</summary>
+    private enum MoveHandleTarget { Vertex, LeftHandle, RightHandle }
+
+    /// <summary>Draws a Unity PositionHandle for the selected vertex/handle and writes the dragged result back to the data.
+    /// 为选中顶点/控制柄绘制 Unity PositionHandle，并将拖拽结果写回数据。</summary>
+    private static void DrawMoveToolHandles(CurveManager m)
+    {
+        var curve = m.SelectedCurve;
+        var vertex = m.SelectedVertex;
+        if (curve == null || vertex == null) return;
+        bool is3d = curve.Is3D;
+
+        Vector3 vertexWorld = is3d ? vertex.PositionV3 : curve.MapToWorld(vertex.Position);
+        int sub = vertex.SelectedSubElement;
+        Vector3 worldPos;
+        MoveHandleTarget target;
+        switch (sub)
+        {
+            case 1: target = MoveHandleTarget.LeftHandle; worldPos = is3d ? vertex.PositionV3 + vertex.LeftHandleOffsetV3 : curve.MapToWorld(vertex.LeftHandlePosition); break;
+            case 2: target = MoveHandleTarget.RightHandle; worldPos = is3d ? vertex.PositionV3 + vertex.RightHandleOffsetV3 : curve.MapToWorld(vertex.RightHandlePosition); break;
+            // 顶点自身及高度箭头（4/5/6）：统一在顶点处显示手柄，Y 轴即调整高度
+            default: target = MoveHandleTarget.Vertex; worldPos = vertexWorld; break;
+        }
+
+        // Align the handle to the editing plane for 2D curves so it does not pull vertices out of plane.
+        // 2D 曲线对手柄对齐编辑平面，避免把顶点拉出平面
+        Quaternion rot = is3d ? Quaternion.identity : Quaternion.LookRotation(curve.PlaneNormal);
+        EditorGUI.BeginChangeCheck();
+        Vector3 newPos = Handles.PositionHandle(worldPos, rot);
+        if (EditorGUI.EndChangeCheck())
+        {
+            if (!_undoRecorded) { Undo.RecordObject(m, "移动曲线元素"); _undoRecorded = true; }
+            WriteMoveHandleTarget(curve, vertex, target, newPos, is3d, vertexWorld);
+            m.MarkDirty();
+            curve.RecalculateHandles();
+            SceneView.RepaintAll();
+            CurveTool.Instance?.Repaint();
+        }
+    }
+
+    /// <summary>Writes a move-handle drag result back to vertex/handle data (per-axis locks preserved).
+    /// 将移动手柄拖拽结果写回顶点/控制柄数据（保留分轴锁）</summary>
+    private static void WriteMoveHandleTarget(BezierCurve curve, CurveVertex vertex, MoveHandleTarget target, Vector3 newPos, bool is3d, Vector3 vertexWorld)
+    {
+        switch (target)
+        {
+            case MoveHandleTarget.Vertex:
+                if (is3d)
+                {
+                    // x→Position.x, z→Position.y (plane-Y), y→Height; locks: LockX / LockY(=plane-Y) / LockZ(=height)
+                    // x→Position.x, z→Position.y（平面Y）, y→Height；分轴锁：LockX / LockY(=平面Y) / LockZ(=高度)
+                    float nx = vertex.LockX ? vertex.Position.x : newPos.x;
+                    float nz = vertex.LockY ? vertex.Position.y : newPos.z;
+                    float ny = vertex.LockZ ? vertex.Height : newPos.y;
+                    vertex.Position = new Vector2(nx, nz);
+                    vertex.Height = ny;
+                }
+                else
+                {
+                    Vector2 np = curve.MapFromWorld(newPos);
+                    if (vertex.LockX) np.x = vertex.Position.x;
+                    if (vertex.LockY) np.y = vertex.Position.y;
+                    vertex.Position = np;
+                }
+                break;
+            case MoveHandleTarget.LeftHandle:
+            case MoveHandleTarget.RightHandle:
+                Vector3 offset = newPos - vertexWorld;
+                bool isLeft = target == MoveHandleTarget.LeftHandle;
+                if (is3d)
+                {
+                    if (isLeft)
+                    {
+                        if (!vertex.LeftHandleLockX) vertex.LeftHandle.x = offset.x;
+                        if (!vertex.LeftHandleLockY) vertex.LeftHandle.y = offset.z;
+                        if (!vertex.LeftHandleLockZ) vertex.LeftHandleHeight = offset.y;
+                        vertex.ApplyHandleType(1, true);
+                    }
+                    else
+                    {
+                        if (!vertex.RightHandleLockX) vertex.RightHandle.x = offset.x;
+                        if (!vertex.RightHandleLockY) vertex.RightHandle.y = offset.z;
+                        if (!vertex.RightHandleLockZ) vertex.RightHandleHeight = offset.y;
+                        vertex.ApplyHandleType(2, true);
+                    }
+                }
+                else
+                {
+                    Vector2 pos2 = curve.MapFromWorld(newPos) - vertex.Position;
+                    if (isLeft)
+                    {
+                        if (!vertex.LeftHandleLockX) vertex.LeftHandle.x = pos2.x;
+                        if (!vertex.LeftHandleLockY) vertex.LeftHandle.y = pos2.y;
+                        vertex.ApplyHandleType(1, false);
+                    }
+                    else
+                    {
+                        if (!vertex.RightHandleLockX) vertex.RightHandle.x = pos2.x;
+                        if (!vertex.RightHandleLockY) vertex.RightHandle.y = pos2.y;
+                        vertex.ApplyHandleType(2, false);
+                    }
+                }
+                break;
+        }
     }
 }

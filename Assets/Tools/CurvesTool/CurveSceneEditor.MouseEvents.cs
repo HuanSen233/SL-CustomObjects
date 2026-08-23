@@ -225,6 +225,9 @@ public static partial class CurveSceneEditor
         }
 
         if (!_isDragging) return;
+        // Move-tool editing enabled: vertex/handle movement is delegated to the Unity Move tool (PositionHandle),
+        // so suppress the built-in drag here. / 移动工具编辑启用：顶点/控制柄移动交由 Unity 移动工具（PositionHandle）处理，屏蔽自写拖拽
+        if (w.UseMoveTool && Tools.current == Tool.Move) { e.Use(); return; }
         var vertex = m.SelectedVertex;
         if (vertex == null) return;
 

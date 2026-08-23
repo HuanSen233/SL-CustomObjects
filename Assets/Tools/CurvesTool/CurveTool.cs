@@ -123,6 +123,11 @@ public partial class CurveTool : EditorWindow
     public Vector3 SnapGridSize = DefaultSnapGridSize;
     public Vector3 SnapIncrementMove = DefaultSnapIncrementMove;
 
+    // ===== Move-tool editing / 移动工具编辑 =====
+    /// <summary>Move vertices/handles with the Unity Move tool (W) instead of the built-in drag logic; when on, the tool's own vertex/handle drag is suppressed.
+    /// 使用 Unity 移动工具（W）移动顶点/控制柄而非工具自带的拖拽逻辑；开启时屏蔽工具自身的顶点/控制柄拖拽。</summary>
+    public bool UseMoveTool = true;
+
     // ===== Window lifecycle / 窗口生命周期 =====
 
     [MenuItem("Tools/Curve Tool")]
@@ -304,6 +309,7 @@ public partial class CurveTool : EditorWindow
         public bool UseEditorSnapSettings = true;
         public Vector3 SnapGridSize = DefaultSnapGridSize;
         public Vector3 SnapIncrementMove = DefaultSnapIncrementMove;
+        public bool UseMoveTool = true;
         public int Language = 0; // 0=EN, 1=ZH
     }
 
@@ -321,6 +327,7 @@ public partial class CurveTool : EditorWindow
             UseEditorSnapSettings = UseEditorSnapSettings,
             SnapGridSize = SnapGridSize,
             SnapIncrementMove = SnapIncrementMove,
+            UseMoveTool = UseMoveTool,
             Language = (int)L10n.Current,
         };
         System.IO.File.WriteAllText(SettingsPath, JsonUtility.ToJson(s, prettyPrint: true));
@@ -341,6 +348,7 @@ public partial class CurveTool : EditorWindow
             UseEditorSnapSettings = s.UseEditorSnapSettings;
             SnapGridSize = s.SnapGridSize;
             SnapIncrementMove = s.SnapIncrementMove;
+            UseMoveTool = s.UseMoveTool;
             GenerationColor = s.GenerationColor;
             VertexPointColor = s.VertexPointColor;
             HandleEndPointColor = s.HandleEndPointColor;

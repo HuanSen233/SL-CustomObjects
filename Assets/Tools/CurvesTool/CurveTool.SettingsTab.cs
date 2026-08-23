@@ -86,6 +86,23 @@ public partial class CurveTool
         if ((L10n.Lang)langIdx != L10n.Current) { L10n.SetLanguage((L10n.Lang)langIdx); UpdateTitle(); SaveSettings(); }
 
         GUILayout.Space(12);
+        EditorGUILayout.LabelField(L10n.T("interaction"), EditorStyles.boldLabel);
+        // Move-tool editing toggle (default on): move vertices/handles via the Unity Move tool (W), suppressing the built-in drag.
+        // 移动工具编辑开关（默认开）：使用 Unity 移动工具（W）移动顶点/控制柄，屏蔽工具自带的拖拽。
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.Label(new GUIContent(L10n.T("use_move_tool"), L10n.T("use_move_tool_tip")), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.62f));
+        bool useMove = UseMoveTool;
+        EditorGUI.BeginChangeCheck();
+        useMove = EditorGUILayout.Toggle(useMove);
+        EditorGUILayout.EndHorizontal();
+        if (EditorGUI.EndChangeCheck() && useMove != UseMoveTool)
+        {
+            UseMoveTool = useMove;
+            SaveSettings();
+            SceneView.RepaintAll();
+        }
+
+        GUILayout.Space(12);
         if (GUILayout.Button(L10n.T("reset_default"), GUILayout.Height(28)))
         {
             // Reset every configurable item (values share the default constants to avoid drift).
@@ -100,6 +117,7 @@ public partial class CurveTool
             UseEditorSnapSettings = true;
             SnapGridSize = DefaultSnapGridSize;
             SnapIncrementMove = DefaultSnapIncrementMove;
+            UseMoveTool = true;
             L10n.SetLanguage(L10n.Lang.EN);
             SaveSettings();
             SceneView.RepaintAll();
