@@ -58,6 +58,27 @@ namespace DONT_TOUCH.Scripts.Editors
                 return;
             }
 
+            if (GUILayout.Button("Auto-assign components"))
+            {
+                bool confirmed = EditorUtility.DisplayDialog(
+                    "⚠️Warning",
+                    "This will automatically add components to child objects. " +
+                    "In some cases, components may be added to the wrong objects. " +
+                    "It is recommended to review the result manually afterwards.",
+                    "Continue",
+                    "Cancel"
+                );
+                
+                if (confirmed)
+                {
+                    Undo.SetCurrentGroupName("Auto-assign components");
+                    int undoGroup = Undo.GetCurrentGroup();
+                    schematic.AutoAssignComponentsToChildren();
+                    Undo.CollapseUndoOperations(undoGroup);
+                    EditorUtility.SetDirty(schematic);
+                }
+            }
+
             if (GUILayout.Button("Compile"))
                 schematic.CompileSchematic();
         }

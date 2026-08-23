@@ -33,9 +33,14 @@ public class PrimitiveComponent : SchematicBlock
         if (Visible)
             primitiveFlags |= PrimitiveFlags.Visible;
 
+        if (!Enum.TryParse<PrimitiveType>(tag, true, out var primitiveType))
+        {
+            Debug.LogError($"Failed to parse tag \"{tag}\". Used default PrimitiveType!", gameObject);
+        }
+        
         block.Properties = new Dictionary<string, object>
         {
-            { "PrimitiveType", (PrimitiveType)Enum.Parse(typeof(PrimitiveType), tag) },
+            { "PrimitiveType", primitiveType },
             { "Color", ColorString },
             { "PrimitiveFlags", primitiveFlags },
             { nameof(Scp106Passable), Scp106Passable }

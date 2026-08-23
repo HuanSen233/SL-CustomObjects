@@ -6,8 +6,10 @@ using DONT_TOUCH.Enums;
 using DONT_TOUCH.Scripts;
 using DONT_TOUCH.Scripts.BlockComponents;
 using DONT_TOUCH.Scripts.BlockSerialization;
+using TMPro;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UI;
 
 #pragma warning disable CS0618
 
@@ -24,7 +26,6 @@ public class Schematic : SchematicBlock
     public void CompileSchematic()
     {
         SetupOutput(out string schematicDirectoryPath);
-        CheckEmptyObjects();
         
         int rootObjectId = transform.GetInstanceID();
         BlockList.RootObjectId = rootObjectId;
@@ -131,33 +132,32 @@ public class Schematic : SchematicBlock
         // return false;
     }
 
-    private void CheckEmptyObjects()
+    public void AutoAssignComponentsToChildren()
     {
         foreach (var target in GetComponentsInChildren<Transform>())
         {
+            if (target.hideFlags.HasFlag(HideFlags.NotEditable))
+                continue;
+            
             if (target.TryGetComponent<SchematicBlock>(out _) || target.TryGetComponent<IgnoreObject>(out _))
+            {
+                continue;
+            }
+            
+            if (target.TryGetComponent<Text>(out _) || target.TryGetComponent<TMP_SubMesh>(out _))
             {
                 continue;
             }
 
             if (target.TryGetComponent<Light>(out _))
             {
-                target.gameObject.AddComponent<LightComponent>();
+                Undo.AddComponent<LightComponent>(target.gameObject);
                 continue;
             }
 
             if (target.TryGetComponent<MeshRenderer>(out var meshRenderer) && target.TryGetComponent<MeshFilter>(out var meshFilter))
             {
-                var primitiveComponent = target.gameObject.AddComponent<PrimitiveComponent>();
-                if (target.TryGetComponent(out Collider col))
-                {
-                    GameObject.DestroyImmediate(col);
-                }
-                else
-                {
-                    primitiveComponent.Collidable = false;
-                }
-                target.gameObject.tag = meshFilter.sharedMesh.name.ToLower() switch
+                var tagTarget = meshFilter.sharedMesh.name.ToLower() switch
                 {
                     "cube" => "Cube",
                     "sphere" => "Sphere",
@@ -165,13 +165,34 @@ public class Schematic : SchematicBlock
                     "cylinder" => "Cylinder",
                     "plane" => "Plane",
                     "quad" => "Quad",
-                    _ => target.gameObject.tag
+                    _ => null
                 };
+                
+                if (string.IsNullOrEmpty(tagTarget))
+                {
+                    continue;
+                }
+
+                Undo.RecordObject(target.gameObject, "Set tag");
+                target.gameObject.tag = tagTarget;
+                
+                var primitiveComponent = Undo.AddComponent<PrimitiveComponent>(target.gameObject);
+                Undo.RecordObject(primitiveComponent, "Set primitive data");
+                
+                if (target.TryGetComponent(out Collider col))
+                {
+                    Undo.DestroyObjectImmediate(col);
+                }
+                else
+                {
+                    primitiveComponent.Collidable = false;
+                }
+
                 primitiveComponent.Color = meshRenderer.sharedMaterial.color;
                 continue;
             }
 
-            target.gameObject.AddComponent<EmptyComponent>();
+            Undo.AddComponent<EmptyComponent>(target.gameObject);
         }
     }
 
