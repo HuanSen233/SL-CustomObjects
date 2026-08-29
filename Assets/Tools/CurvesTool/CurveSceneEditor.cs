@@ -166,6 +166,20 @@ public static partial class CurveSceneEditor
     /// 将移动手柄拖拽结果写回顶点/控制柄数据（保留分轴锁）</summary>
     private static void WriteMoveHandleTarget(BezierCurve curve, CurveVertex vertex, MoveHandleTarget target, Vector3 newPos, bool is3d, Vector3 vertexWorld)
     {
+        // Grid/increment snap: snap the world-space handle result to the grid BEFORE writing, so a dragged
+        // target "归位"s onto the nearest grid point first and then moves in grid steps — mirroring the tool's
+        // built-in drag (SnapDragStartIfNeeded + SnapVector3 in HandleMouseDrag). Same condition & step as built-in.
+        // 网格/增量吸附：写回前先把世界空间的手柄结果吸附到网格，使拖拽目标“先归位到网格再移动”，
+        // 与工具自带拖拽（SnapDragStartIfNeeded + SnapVector3）保持一致；条件与步长也复用同一套逻辑。
+        var w = CurveTool.Instance;
+        Event e = Event.current;
+        bool ctrlSnap = e != null && (e.control || e.command);
+        if (w != null && (EditorSnapSettings.gridSnapEnabled || ctrlSnap))
+        {
+            Vector3 gs = GetSnapStep(w, ctrlSnap);
+            newPos = SnapVector3(newPos, gs);
+        }
+
         switch (target)
         {
             case MoveHandleTarget.Vertex:
