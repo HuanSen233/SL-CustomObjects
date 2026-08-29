@@ -40,6 +40,9 @@ public static class CurveSceneRenderer
     /// 进阶适应中心参考线颜色（反射角/外角平分线引导线）</summary>
     private static readonly Color CenterLineColor = new Color(1f, 0.45f, 0.1f, 0.95f);
 
+    /// <summary>Color highlighting the primary side of an advanced-fit footprint. / 进阶足迹主侧的高亮颜色</summary>
+    private static readonly Color PrimaryLineColor = Color.yellow;
+
     /// <summary>Safe normalize for Vector3 (returns zero vector when the input is too short, avoiding NaN).
     /// Vector3 安全归一化（过短时返回零向量，避免 NaN）</summary>
     private static Vector3 SafeNormalize3(Vector3 v)
@@ -248,113 +251,100 @@ public static class CurveSceneRenderer
                 Vector3 uIn = SafeNormalize3(b - a);
                 Vector3 vOut = SafeNormalize3(c - b);
                 if (uIn.sqrMagnitude < 1e-10f || vOut.sqrMagnitude < 1e-10f) continue;
-                if (Vector3.Dot(uIn, vOut) > 0.9999f) continue; // straight, no reflex / 直线贯通，无反射角
-                Vector3 cline = SafeNormalize3(uIn - vOut);
-                if (cline.sqrMagnitude < 1e-10f) continue;
-                origin[i] = b; ldir[i] = cline; has[i] = true;
+                Vector3 bdir;
+                if (Vector3.Dot(uIn, vOut) > 0.9999f)
+                {
+                    // Straight (both angles 180°): use a perpendicular boundary here (the "both-sides" reference),
+                    // so a straight-span micro-segment gets a simple bounded rectangle.
+                    // 直线贯通（内外角同为180°）：此处用垂线作为边界（双向参考线），直线段小段得到简单有界矩形。
+                    bdir = SafeNormalize3(Vector3.Cross(normal, uIn));
+                }
+                else
+                {
+                    // Reflex-angle center line: bisector of the outer/gap angle, pointing into the gap.
+                    // 反射角中心参考线：外角（缺口侧）的角平分线方向，指向缺口。
+                    bdir = SafeNormalize3(uIn - vOut);
+                }
+                if (bdir.sqrMagnitude < 1e-10f) continue;
+                origin[i] = b; ldir[i] = bdir; has[i] = true;
             }
         }
 
-        // 1) Parallel reference lines per micro-segment, both sides, truncated at the micro-segment's end lines.
-        // 小线段两侧的平行参考线，在该小线段首尾两条线处截断。
-        Handles.color = CenterLineColor;
+        // Advanced-fit footprint per micro-segment: the primary/secondary side parallels truncated at the two
+        // bounding reflex/perpendicular lines, drawn as a quadrilateral of 4 corners. The primary side is highlighted.
+        // 每个进阶小线段的进阶足迹：主/副侧平行线与首尾两条参考线（反射角线/端点垂线）的交点构成 4 角点四角形；
+        // 主侧高亮显示（第二步：主/副侧判定 + 4 交点）。
         for (int m = 0; m < n - 1; m++)
         {
-            if (!isAdv[m]) continue; // only advanced micro-segments show a parallel line / 仅进阶小线段画平行线
-            Vector3 a = curve.MapToWorld(pts[m]);
-            Vector3 b = curve.MapToWorld(pts[m + 1]);
-            Vector3 dir = SafeNormalize3(b - a);
-            if (dir.sqrMagnitude < 1e-10f) continue;
-            Vector3 nrm = SafeNormalize3(Vector3.Cross(normal, dir));
-            if (nrm.sqrMagnitude < 1e-10f) continue;
-            float dist = Mathf.Max(0f, curve.Segments.Count > m ? curve.Segments[m].FitSizeScale : 0.5f);
-            float baseLen = Vector3.Distance(a, b);
-            int startIdx = m;
-            int endIdx = (isLoop && m + 1 == n - 1) ? 0 : m + 1; // loop wrap end → joint at 0 / 闭环环绕末端→连接点0
-            for (int s = -1; s <= 1; s += 2)
-            {
-                Vector3 pOrigin = (a + b) * 0.5f + nrm * (dist * s);
-                float maxLen = baseLen * 2f + dist * 4f + 1f;
-                Vector3 p0 = Vector3.zero, p1 = Vector3.zero;
-                bool ok0 = has[startIdx] && IntersectLines(pOrigin, dir, origin[startIdx], ldir[startIdx], normal, out p0);
-                bool ok1 = has[endIdx] && IntersectLines(pOrigin, dir, origin[endIdx], ldir[endIdx], normal, out p1);
-                if (!ok0) p0 = pOrigin - dir * maxLen;
-                if (!ok1) p1 = pOrigin + dir * maxLen;
-                Handles.DrawLine(p0, p1);
-            }
-        }
+            if (!isAdv[m]) continue; // only advanced micro-segments / 仅进阶小线段
+            if (!TryGetFootprintCorners(curve, pts, m, n, isLoop, normal, origin, ldir, has, out Vector3[] c))
+                continue;
 
-        // 2) Reflex & perpendicular lines, truncated at the adjacent parallel lines (else max fallback).
-        // Only junctions that bound an advanced micro-segment (i.e. the two corner reflex/perp lines of an
-        // advanced segment) are drawn. / 反射角线与端点垂线：在与相邻平行参考线的交点处截断（无交点则取最大值兜底）。
-        // 仅绘制包围进阶小线段的交界（即进阶小线段的两角反射线/端点垂线）。
-        for (int i = 0; i < n; i++)
+            // Secondary edge + the two cross edges (reflex/endpoint-perpendicular truncated at the parallels).
+            // 副侧边 + 两条横截边（反射/端点垂线在平行线处截断）。
+            Handles.color = CenterLineColor;
+            Handles.DrawLine(c[3], c[2]); // secondary parallel edge / 副侧平行边
+            Handles.DrawLine(c[1], c[2]); // end cross edge / 末端横边（终点反射/垂线）
+            Handles.DrawLine(c[0], c[3]); // start cross edge / 首端横边（起点反射/垂线）
+
+            // Primary side — highlighted. / 主侧 — 高亮。
+            Handles.color = PrimaryLineColor;
+            Handles.DrawLine(c[0], c[1]);
+
+            // Corner markers. / 角点标记。
+            Handles.color = CenterLineColor;
+            for (int k = 0; k < 4; k++)
+                Handles.SphereHandleCap(0, c[k], Quaternion.identity, 0.03f, EventType.Repaint);
+        }
+    }
+
+    /// <summary>
+    /// Computes the rectangle footprint of an advanced micro-segment: the bounding parallelogram of the 4 raw
+    /// reflex-line intersections is snapped to the segment frame (along = min/max of the intersections projected
+    /// onto the segment direction, across = ±FitSizeScale), so the object renders as a rectangle. At a bend this
+    /// stretches toward the reflex center (fills the outer gap) while the inner side overlaps (clips).
+    /// 计算进阶小线段的矩形足迹：把 4 个原始反射线交点归整到小线段坐标系（沿段方向取交点的 min/max 跨度，
+    /// 横跨 ±FitSizeScale），使物体呈矩形。弯折处向反射角中心拉伸（填外角缺口），内角则重叠（穿模）。
+    /// </summary>
+    private static bool TryGetFootprintCorners(BezierCurve curve, List<Vector2> pts, int m, int n, bool isLoop,
+        Vector3 normal, Vector3[] refOrigin, Vector3[] refDir, bool[] hasRef,
+        out Vector3[] corners)
+    {
+        corners = new Vector3[4];
+        Vector3 a = curve.MapToWorld(pts[m]);
+        Vector3 b = curve.MapToWorld(pts[m + 1]);
+        Vector3 dir = SafeNormalize3(b - a);
+        if (dir.sqrMagnitude < 1e-10f) return false;
+        Vector3 nrm = SafeNormalize3(Vector3.Cross(normal, dir));
+        if (nrm.sqrMagnitude < 1e-10f) return false;
+        float dist = Mathf.Max(0f, curve.Segments.Count > m ? curve.Segments[m].FitSizeScale : 0.5f);
+        Vector3 center = (a + b) * 0.5f;
+        int startIdx = m;
+        int endIdx = (isLoop && m + 1 == n - 1) ? 0 : m + 1; // loop wrap end → joint at 0 / 闭环环绕末端→连接点0
+
+        // Snapshot the along-segment extent from both sides' intersections with the start/end reference lines.
+        // 用两侧平行线与起/终参考线的交点快照沿段方向的跨度。
+        float minA = float.MaxValue, maxA = float.MinValue;
+        for (int si = 0; si < 2; si++)
         {
-            if (!has[i]) continue;
-            bool endpoint = !isLoop && (i == 0 || i == n - 1);
-            Vector3 pt = origin[i], dir = ldir[i];
-            int ma, mb;
-            if (isLoop && i == 0) { ma = n - 2; mb = 0; }       // loop joint: last & first micro-segment / 闭环连接点两侧
-            else if (i == 0) { ma = 0; mb = 0; }                 // open start endpoint / 开放起点
-            else if (i == n - 1) { ma = n - 2; mb = n - 2; }     // open end endpoint / 开放终点
-            else { ma = i - 1; mb = i; }                          // interior junction / 内部交界
-
-            // Only draw when this line bounds an advanced micro-segment (a corner of it).
-            // 仅当其包围进阶小线段（作为该进阶小线段的一角）时显示。
-            bool boundsAdv = false;
-            for (int mm = ma; mm <= mb; mm++)
-                if (mm >= 0 && mm < isAdv.Length && isAdv[mm]) { boundsAdv = true; break; }
-            if (!boundsAdv) continue;
-
-            Vector3 other = curve.MapToWorld(pts[(i == 0 ? 1 : (i == n - 1 ? n - 2 : i - 1))]);
-            float maxLn = Mathf.Max(1f, Vector3.Distance(pt, other) * 3f + 1f);
-
-            if (endpoint)
-            {
-                // Endpoint perpendicular line: BOTH sides, each truncated at the adjacent parallel (else max).
-                // 端点垂线：两侧都画，各在相邻平行线处截断（无交点用最大值兜底）。
-                float tMin = -maxLn, tMax = maxLn;
-                for (int mm = ma; mm <= mb; mm++)
-                {
-                    if (mm < 0 || mm >= n - 1) continue;
-                    for (int s = -1; s <= 1; s += 2)
-                    {
-                        if (!TryGetParallel(curve, pts, mm, s, normal, out Vector3 po, out Vector3 pd)) continue;
-                        if (IntersectLines(pt, dir, po, pd, normal, out Vector3 ip))
-                        {
-                            float t = Vector3.Dot(ip - pt, dir);
-                            if (Mathf.Abs(t) < 1e-4f) continue;
-                            if (t > 0f) tMax = Mathf.Max(tMax, t);
-                            else tMin = Mathf.Min(tMin, t);
-                        }
-                    }
-                }
-                Handles.color = CenterLineColor;
-                Handles.DrawLine(pt + dir * tMin, pt + dir * tMax);
-            }
-            else
-            {
-                // Reflex line: ray into the gap, truncated at the farthest forward adjacent parallel.
-                // 反射角线：指向缺口的射线，在最远的正向相邻平行线处截断。
-                float bestT = -1f;
-                for (int mm = ma; mm <= mb; mm++)
-                {
-                    if (mm < 0 || mm >= n - 1) continue;
-                    for (int s = -1; s <= 1; s += 2)
-                    {
-                        if (!TryGetParallel(curve, pts, mm, s, normal, out Vector3 po, out Vector3 pd)) continue;
-                        if (IntersectLines(pt, dir, po, pd, normal, out Vector3 ip))
-                        {
-                            float t = Vector3.Dot(ip - pt, dir);
-                            if (t > 0.0001f && t > bestT) bestT = t;
-                        }
-                    }
-                }
-                float drawLen = bestT > 0f ? bestT : maxLn;
-                Handles.color = CenterLineColor;
-                Handles.DrawLine(pt, pt + dir * drawLen);
-            }
+            int s = si == 0 ? 1 : -1;
+            if (!TryGetParallel(curve, pts, m, s, normal, out Vector3 po, out Vector3 pd)) return false;
+            if (hasRef[startIdx] && IntersectLines(po, dir, refOrigin[startIdx], refDir[startIdx], normal, out Vector3 ipS))
+                minA = Mathf.Min(minA, Vector3.Dot(ipS - center, dir));
+            if (hasRef[endIdx] && IntersectLines(po, dir, refOrigin[endIdx], refDir[endIdx], normal, out Vector3 ipE))
+                maxA = Mathf.Max(maxA, Vector3.Dot(ipE - center, dir));
         }
+        // Degenerate fallback: bound to the segment itself. / 退化兜底：取段自身跨度。
+        float segHalf = Vector3.Distance(a, b) * 0.5f;
+        if (minA > maxA) { minA = -segHalf; maxA = segHalf; }
+
+        // Rectangle corners: [start(+d), end(+d), end(-d), start(-d)] in the segment frame.
+        // 矩形角点：[起点(+d), 终点(+d), 终点(-d), 起点(-d)]（小线段坐标系）。
+        corners[0] = center + dir * minA + nrm * dist;
+        corners[1] = center + dir * maxA + nrm * dist;
+        corners[2] = center + dir * maxA - nrm * dist;
+        corners[3] = center + dir * minA - nrm * dist;
+        return true;
     }
 
     /// <summary>Gets the parallel reference line (origin + in-plane direction) for micro-segment m on side s (±1),
