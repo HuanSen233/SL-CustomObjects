@@ -627,6 +627,7 @@ public partial class CurveTool
             _segPositionOffset = seg.PositionOffset;
             _segFitSegmentLength = seg.FitSegmentLength;
             _segFitAxis = seg.FitAxis;
+            _segFitMode = seg.FitMode;
             _segRelativeScale = seg.RelativeScale;
             _segRotationOffset = seg.RotationOffset;
             _segPositionOffset3D = seg.PositionOffset3D;
@@ -634,8 +635,8 @@ public partial class CurveTool
 
         EditorGUI.BeginDisabledGroup(!hasSelection || !_editMode);
 
-        // Field order: primitive → base scale → center offset → fit axis|length → relative scale → rotation offset → position offset
-        // 字段顺序：基础物体 → 基础缩放 → 中心点偏移 → 缩放轴|适应段长 → 相对缩放 → 旋转偏移 → 位置偏移
+        // Field order: primitive → base scale → center offset → fit enable|mode → scale axis → relative scale → rotation offset → position offset
+        // 字段顺序：基础物体 → 基础缩放 → 中心点偏移 → 适应启用|模式 → 缩放轴 → 相对缩放 → 旋转偏移 → 位置偏移
         EditorGUI.BeginChangeCheck();
         string[] primNames = _primNames ??= new[] { L10n.T("primitive_sphere"), L10n.T("primitive_capsule"), L10n.T("primitive_cylinder"), L10n.T("primitive_cube"), L10n.T("primitive_plane"), L10n.T("primitive_quad") };
         EditorGUILayout.BeginHorizontal();
@@ -655,9 +656,25 @@ public partial class CurveTool
         _segPositionOffset = EditorGUILayout.FloatField(_segPositionOffset);
         EditorGUILayout.EndHorizontal();
 
+        // Fit row: enable toggle + mode dropdown (Simple/Advanced). The axis dropdown moved to its own row below,
+        // since the mode dropdown now occupies this row's popup slot. / 适应行：启用开关 + 模式下拉（简单/进阶）。
+        // 缩放轴下拉被模式下拉占用，故移到下一行独立显示。
         EditorGUILayout.BeginHorizontal();
         GUILayout.Label(L10n.T("fit_length"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
         _segFitSegmentLength = EditorGUILayout.Toggle(_segFitSegmentLength, GUILayout.Width(16));
+        _fitModeNames ??= new[] { L10n.T("fit_mode_simple"), L10n.T("fit_mode_advanced") };
+        // Advanced gap-filling fit only applies to 2D curves: for 3D curves force Simple and gray the mode dropdown.
+        // 进阶填缺口适应模式仅适用于 2D 曲线；3D 曲线强制为简单并灰显模式下拉。
+        bool advancedAllowed = curve == null || !curve.Is3D;
+        if (!advancedAllowed) _segFitMode = 0;
+        EditorGUI.BeginDisabledGroup(!advancedAllowed);
+        _segFitMode = EditorGUILayout.Popup(_segFitMode, _fitModeNames);
+        EditorGUI.EndDisabledGroup();
+        EditorGUILayout.EndHorizontal();
+
+        // Scale axis dropdown (moved to its own row) / 缩放轴下拉（移到下一行）
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.Label(L10n.T("fit_axis"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
         _segFitAxis = EditorGUILayout.Popup(_segFitAxis, AxisNames);
         EditorGUILayout.EndHorizontal();
 
@@ -696,6 +713,7 @@ public partial class CurveTool
                 curve.Segments[i].PositionOffset = _segPositionOffset;
                 curve.Segments[i].FitSegmentLength = _segFitSegmentLength;
                 curve.Segments[i].FitAxis = _segFitAxis;
+                curve.Segments[i].FitMode = _segFitMode;
                 curve.Segments[i].RelativeScale = _segRelativeScale;
                 curve.Segments[i].RotationOffset = _segRotationOffset;
                 curve.Segments[i].PositionOffset3D = _segPositionOffset3D;

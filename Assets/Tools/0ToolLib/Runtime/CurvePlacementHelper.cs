@@ -77,6 +77,9 @@ public static class CurvePlacementHelper
 
         // Scale chain: BaseScale → (FitSegmentLength multiplies segment length) → × RelativeScale.
         // 缩放：BaseScale → FitSegmentLength 乘段长 → × RelativeScale
+        // NOTE: Advanced gap-filling fit (seg.FitMode == 1) applies to 2D curves only; its algorithm is
+        // implemented later. For now both modes use the simple path below.
+        // 注意：进阶填缺口适应模式（seg.FitMode == 1）仅适用于 2D 曲线，算法后续实现；当前两种模式都走下面这条简单逻辑。
         scale = seg.BaseScale;
         if (seg.FitSegmentLength)
         {

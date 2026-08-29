@@ -44,6 +44,7 @@ public partial class CurveTool : EditorWindow
     private PrimitiveType _segPrimitiveType = PrimitiveType.Cube;
     private bool _segFitSegmentLength = true;
     private int _segFitAxis = 2;
+    private int _segFitMode = 0;
 
     // ===== Cursor/vertex/handle edit buffers / 游标/顶点/控制柄编辑缓冲 =====
     private Vector2 _vertexPosition;
@@ -54,6 +55,7 @@ public partial class CurveTool : EditorWindow
     // ===== Localization/option caches (avoid per-frame allocations) / 本地化/选项缓存（避免每帧分配新数组）=====
     private string[] _htNames;
     private string[] _primNames;
+    private string[] _fitModeNames;
     private static readonly string[] AxisNames = { "X", "Y", "Z" };
     private static readonly string[] LangNames = { "English", "简体中文" };
 

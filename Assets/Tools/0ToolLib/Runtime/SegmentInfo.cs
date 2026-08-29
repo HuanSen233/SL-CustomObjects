@@ -24,6 +24,11 @@ public class SegmentInfo
     /// 适应段长时覆盖哪个缩放轴（0=X, 1=Y, 2=Z）</summary>
     public int FitAxis = 2;
 
+    /// <summary>Segment-length fitting mode (0=Simple, 1=Advanced). Simple keeps the current behavior
+    /// (assign segment length onto the chosen scale axis); Advanced is the gap-filling variant (algorithm TBD).
+    /// 适应段长模式（0=简单，1=进阶）。简单=现有逻辑（把段长赋给指定缩放轴）；进阶=填缺口的新算法（算法待实现）</summary>
+    public int FitMode = 0;
+
     /// <summary>Relative scale multiplier (on top of absolute scale), default 1.
     /// 相对缩放乘数（在绝对缩放基础上），默认 1</summary>
     public Vector3 RelativeScale = Vector3.one;
