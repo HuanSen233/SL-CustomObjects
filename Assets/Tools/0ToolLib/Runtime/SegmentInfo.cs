@@ -29,6 +29,11 @@ public class SegmentInfo
     /// 适应段长模式（0=简单，1=进阶）。简单=现有逻辑（把段长赋给指定缩放轴）；进阶=填缺口的新算法（算法待实现）</summary>
     public int FitMode = 0;
 
+    /// <summary>Advanced-fit size scale: distance from the segment to each parallel reference line (world units),
+    /// default 0.5. Only relevant when FitMode = Advanced (the control is grayed otherwise).
+    /// 进阶适应尺寸缩放：小线段到每条平行参考线的距离（世界单位），默认 0.5；仅 FitMode=进阶时生效（否则灰显）</summary>
+    public float FitSizeScale = 0.5f;
+
     /// <summary>Relative scale multiplier (on top of absolute scale), default 1.
     /// 相对缩放乘数（在绝对缩放基础上），默认 1</summary>
     public Vector3 RelativeScale = Vector3.one;

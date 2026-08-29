@@ -45,6 +45,7 @@ public partial class CurveTool : EditorWindow
     private bool _segFitSegmentLength = true;
     private int _segFitAxis = 2;
     private int _segFitMode = 0;
+    private float _segFitSizeScale = 0.5f;
 
     // ===== Cursor/vertex/handle edit buffers / 游标/顶点/控制柄编辑缓冲 =====
     private Vector2 _vertexPosition;

@@ -628,6 +628,7 @@ public partial class CurveTool
             _segFitSegmentLength = seg.FitSegmentLength;
             _segFitAxis = seg.FitAxis;
             _segFitMode = seg.FitMode;
+            _segFitSizeScale = seg.FitSizeScale;
             _segRelativeScale = seg.RelativeScale;
             _segRotationOffset = seg.RotationOffset;
             _segPositionOffset3D = seg.PositionOffset3D;
@@ -678,6 +679,15 @@ public partial class CurveTool
         _segFitAxis = EditorGUILayout.Popup(_segFitAxis, AxisNames);
         EditorGUILayout.EndHorizontal();
 
+        // Fit size scale: distance to each parallel reference line, grayed unless Advanced fit is selected.
+        // 适应尺寸缩放：到每条平行参考线的距离；仅选中进阶时可用。
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.Label(L10n.T("fit_size_scale"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
+        EditorGUI.BeginDisabledGroup(_segFitMode != 1);
+        _segFitSizeScale = EditorGUILayout.FloatField(_segFitSizeScale);
+        EditorGUI.EndDisabledGroup();
+        EditorGUILayout.EndHorizontal();
+
         // Relative scale X/Y/Z inputs / 相对缩放 X/Y/Z 分轴输入
         EditorGUILayout.BeginHorizontal();
         GUILayout.Label(L10n.T("rel_scale"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
@@ -714,6 +724,7 @@ public partial class CurveTool
                 curve.Segments[i].FitSegmentLength = _segFitSegmentLength;
                 curve.Segments[i].FitAxis = _segFitAxis;
                 curve.Segments[i].FitMode = _segFitMode;
+                curve.Segments[i].FitSizeScale = _segFitSizeScale;
                 curve.Segments[i].RelativeScale = _segRelativeScale;
                 curve.Segments[i].RotationOffset = _segRotationOffset;
                 curve.Segments[i].PositionOffset3D = _segPositionOffset3D;

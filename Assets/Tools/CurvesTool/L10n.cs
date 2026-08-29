@@ -40,6 +40,7 @@ public static class L10n
         { "fit_mode_simple",    new() { [ToolL10n.Lang.EN] = "Simple",                     [ToolL10n.Lang.ZH] = "简单" } },
         { "fit_mode_advanced",  new() { [ToolL10n.Lang.EN] = "Advanced",                   [ToolL10n.Lang.ZH] = "进阶" } },
         { "fit_axis",           new() { [ToolL10n.Lang.EN] = "Scale Axis",                 [ToolL10n.Lang.ZH] = "缩放轴" } },
+        { "fit_size_scale",     new() { [ToolL10n.Lang.EN] = "Fit Size Scale",             [ToolL10n.Lang.ZH] = "适应尺寸缩放" } },
         { "rel_scale",          new() { [ToolL10n.Lang.EN] = "Relative Scale",             [ToolL10n.Lang.ZH] = "相对缩放" } },
         { "rot_offset",         new() { [ToolL10n.Lang.EN] = "Rotation Offset",            [ToolL10n.Lang.ZH] = "旋转偏移" } },
         { "center_offset",      new() { [ToolL10n.Lang.EN] = "Center Offset",              [ToolL10n.Lang.ZH] = "中心点偏移" } },
