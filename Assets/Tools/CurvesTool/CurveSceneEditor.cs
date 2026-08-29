@@ -106,6 +106,39 @@ public static partial class CurveSceneEditor
     /// <summary>Which element the move handle is targeting. / 移动手柄目标元素</summary>
     private enum MoveHandleTarget { Vertex, LeftHandle, RightHandle }
 
+    /// <summary>World position of the element the move handle currently targets (vertex/handle, 2D or 3D).
+    /// 移动手柄当前目标元素（顶点/控制柄，2D/3D）的世界坐标。</summary>
+    private static Vector3 GetMoveHandleWorldPos(BezierCurve curve, CurveVertex vertex, bool is3d)
+    {
+        return vertex.SelectedSubElement switch
+        {
+            1 => is3d ? vertex.PositionV3 + vertex.LeftHandleOffsetV3 : curve.MapToWorld(vertex.LeftHandlePosition),
+            2 => is3d ? vertex.PositionV3 + vertex.RightHandleOffsetV3 : curve.MapToWorld(vertex.RightHandlePosition),
+            _ => is3d ? vertex.PositionV3 : curve.MapToWorld(vertex.Position),
+        };
+    }
+
+    /// <summary>Whether the given screen position is on the move-handle gizmo (center + axis arrows), so an
+    /// empty-space click there must NOT clear the selection. Uses a screen-radius approximation around the
+    /// projected handle position. / 判断给定屏幕位置是否落在移动手柄 Gizmo（中心+轴箭头）上——点击此处时不应清空选中。
+    /// 用投影到手柄位置周围的屏幕半径近似判断。</summary>
+    private static bool IsOnMoveHandleGizmo(CurveManager m, Vector2 mousePos)
+    {
+        var vertex = m.SelectedVertex;
+        var curve = m.SelectedCurve;
+        if (curve == null || vertex == null) return false;
+        Vector3 world = GetMoveHandleWorldPos(curve, vertex, curve.Is3D);
+        if (Camera.current == null) return false; // can't project without a camera / 无相机时无法投影
+        Vector2 center = HandleUtility.WorldToGUIPoint(world);
+        float hsize = HandleUtility.GetHandleSize(world);
+        // Project a world-space offset to measure the handle's screen size, then use a generous multiple
+        // to cover the axis arrows. / 投影一个世界偏移量估算手柄的屏幕尺寸，再取较大倍数覆盖轴箭头。
+        Vector2 edge = HandleUtility.WorldToGUIPoint(world + Camera.current.transform.right * hsize);
+        float pxPerSize = Mathf.Max(2f, Vector2.Distance(center, edge));
+        float radius = pxPerSize * 3.5f + 25f;
+        return Vector2.Distance(mousePos, center) <= radius;
+    }
+
     /// <summary>Draws a Unity PositionHandle for the selected vertex/handle and writes the dragged result back to the data.
     /// 为选中顶点/控制柄绘制 Unity PositionHandle，并将拖拽结果写回数据。</summary>
     private static void DrawMoveToolHandles(CurveManager m)
@@ -121,11 +154,12 @@ public static partial class CurveSceneEditor
         MoveHandleTarget target;
         switch (sub)
         {
-            case 1: target = MoveHandleTarget.LeftHandle; worldPos = is3d ? vertex.PositionV3 + vertex.LeftHandleOffsetV3 : curve.MapToWorld(vertex.LeftHandlePosition); break;
-            case 2: target = MoveHandleTarget.RightHandle; worldPos = is3d ? vertex.PositionV3 + vertex.RightHandleOffsetV3 : curve.MapToWorld(vertex.RightHandlePosition); break;
+            case 1: target = MoveHandleTarget.LeftHandle; break;
+            case 2: target = MoveHandleTarget.RightHandle; break;
             // 顶点自身及高度箭头（4/5/6）：统一在顶点处显示手柄，Y 轴即调整高度
-            default: target = MoveHandleTarget.Vertex; worldPos = vertexWorld; break;
+            default: target = MoveHandleTarget.Vertex; break;
         }
+        worldPos = GetMoveHandleWorldPos(curve, vertex, is3d);
 
         // Handle rotation respects the Unity coordinate system: Global/world axis → identity (no plane tilt, no degenerate
         // LookRotation); Local → a stable plane-facing rotation (tangent forward + plane normal up) that never degenerates.

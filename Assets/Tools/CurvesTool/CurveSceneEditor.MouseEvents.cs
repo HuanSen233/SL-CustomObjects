@@ -114,12 +114,22 @@ public static partial class CurveSceneEditor
                         }
                         else
                         {
-                            // Move-tool editing: a click outside the curve elements (e.g. on the move-handle axis
-                            // arrows) must NOT clear the selection, otherwise the move handle disappears and its
-                            // arrows can never be clicked. Leave the event to the PositionHandle.
-                            // 移动工具编辑：点击曲线元素之外（如移动手柄的轴箭头）不能清空选中，否则移动手柄消失、
-                            // 轴箭头永远无法点选；事件留给 PositionHandle。
-                            if (w.UseMoveTool && Tools.current == Tool.Move) { return; }
+                            // Move-tool editing: a click that lands ON the move-handle gizmo (its axis arrows /
+                            // center) must NOT clear the selection, otherwise the move handle disappears and its
+                            // arrows can never be clicked — leave it to the PositionHandle. A click on truly empty
+                            // space clears the selection, matching the built-in drag behavior.
+                            // 移动工具编辑：点在移动手柄 Gizmo（轴箭头/中心）上不能清空选中，否则手柄消失、
+                            // 轴箭头永远无法点选——交给 PositionHandle；点在真正空白处则清空选中，与自带拖拽一致。
+                            if (w.UseMoveTool && Tools.current == Tool.Move)
+                            {
+                                if (IsOnMoveHandleGizmo(m, e.mousePosition)) return;
+                                m.ClearSelection();
+                                _isDragging = false;
+                                e.Use();
+                                SceneView.RepaintAll();
+                                w.Repaint();
+                                return;
+                            }
                             m.ClearSelection();
                             _isDragging = false;
                             e.Use();
