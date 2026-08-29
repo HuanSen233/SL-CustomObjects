@@ -19,11 +19,14 @@ public static class CurvePlacementHelper
     /// <param name="i">Micro-segment index (0-based) / 小线段索引（0 起）</param>
     /// <param name="pts">2D sample points (result of SamplePoints(); must stay in sync with pts3d) / 2D 采样点（SamplePoints() 的结果，须与 pts3d 同步）</param>
     /// <param name="pts3d">3D sample points (result of SamplePoints3D(); pass null for non-3D curves) / 3D 采样点（SamplePoints3D() 的结果；非 3D 曲线传 null）</param>
+    /// <param name="refs">Precomputed boundary lines for the curve (CurveFitGeometry.ComputeBoundaryLines); pass
+    /// CurveFitRefs.Empty when no advanced-fit segments are expected. / 该曲线的预计算边界线
+    /// （CurveFitGeometry.ComputeBoundaryLines 的结果）；无进阶段时传 CurveFitRefs.Empty。</param>
     /// <param name="pos">Output: world position (segment center + offset) / 输出：世界位置（段中心 + 偏移）</param>
     /// <param name="rot">Output: world rotation (LookRotation + rotation offset) / 输出：世界旋转（LookRotation + 旋转偏移）</param>
     /// <param name="scale">Output: world scale (BaseScale → FitSegmentLength → RelativeScale) / 输出：世界缩放（BaseScale → FitSegmentLength → RelativeScale）</param>
     public static bool ComputePlacement(BezierCurve curve, int i, List<Vector2> pts, List<Vector3> pts3d,
-        out Vector3 pos, out Quaternion rot, out Vector3 scale)
+        CurveFitRefs refs, out Vector3 pos, out Quaternion rot, out Vector3 scale)
     {
         pos = Vector3.zero;
         rot = Quaternion.identity;
@@ -88,7 +91,7 @@ public static class CurvePlacementHelper
                 // and the thickness (out-of-plane) keeps its BaseScale default.
                 // 进阶填缺口适应（仅2D）：按足迹矩形取缩放，并遵循 FitAxis 选择的长度轴。
                 // 宽度（2×FitSizeScale）给另一面内轴；厚度（平面法线）保留 BaseScale 默认。
-                if (TryComputeAdvancedFitRect(curve, pts, i, out float fitLen, out float fitWidth, out float fitAlong))
+                if (TryComputeAdvancedFitRect(curve, pts, i, refs, out float fitLen, out float fitWidth, out float fitAlong))
                 {
                     // Local frame = LookRotation(dir, planeNormal): Z = segment dir, X = in-plane across, Y = plane normal.
                     // 局部坐标系 = LookRotation(dir, planeNormal)：Z = 段方向，X = 面内横向，Y = 平面法线。
@@ -126,97 +129,13 @@ public static class CurvePlacementHelper
         return true;
     }
 
-    /// <summary>Safe normalize for Vector3 (returns zero on a too-short input, avoiding NaN).
-    /// Vector3 安全归一化（过短时返回零向量，避免 NaN）</summary>
-    private static Vector3 SafeNormalize3(Vector3 v)
+    /// <summary>Advanced-fit footprint rectangle for micro-segment i (via the shared CurveFitGeometry), using the
+    /// precomputed boundary lines `refs`; falls back to computing the lines on the fly when `refs` is empty.
+    /// 进阶小段 i 的足迹矩形（经由共享 CurveFitGeometry），使用预计算边界线 refs；refs 为空时现场计算兜底。</summary>
+    private static bool TryComputeAdvancedFitRect(BezierCurve curve, List<Vector2> pts, int i, CurveFitRefs refs,
+        out float length, out float width, out float alongCenter)
     {
-        float len = v.magnitude;
-        return len < 1e-6f ? Vector3.zero : v / len;
-    }
-
-    /// <summary>Intersects two coplanar infinite lines (in the curve's plane). Returns false when parallel.
-    /// 求平面内两条无限直线的交点（在曲线平面内）；平行时返回 false。</summary>
-    private static bool IntersectLines(Vector3 o1, Vector3 d1, Vector3 o2, Vector3 d2, Vector3 normal, out Vector3 point)
-    {
-        point = Vector3.zero;
-        float denom = Vector3.Dot(Vector3.Cross(d1, d2), normal);
-        if (Mathf.Abs(denom) < 1e-8f) return false;
-        float t = Vector3.Dot(Vector3.Cross(o2 - o1, d2), normal) / denom;
-        point = o1 + d1 * t;
-        return true;
-    }
-
-    /// <summary>Computes the boundary line (origin + in-plane direction) at sample-point junction i:
-    /// reflex bisector at a bend, perpendicular at a straight junction or open-curve endpoint.
-    /// 计算采样点交界 i 处的边界线（原点+平面内方向）：弯折处为反射角线，直线交界或开放端点为垂线。</summary>
-    private static bool TryBoundaryLine(BezierCurve curve, List<Vector2> pts, Vector3 normal, int i, out Vector3 origin, out Vector3 ldir)
-    {
-        origin = Vector3.zero; ldir = Vector3.zero;
-        int n = pts.Count;
-        Vector3 b = curve.MapToWorld(pts[i]);
-        bool endpoint = !curve.IsLoop && (i == 0 || i == n - 1);
-        if (endpoint)
-        {
-            int adj = i == 0 ? 1 : n - 2;
-            Vector3 sd = SafeNormalize3(curve.MapToWorld(pts[adj]) - b);
-            if (sd.sqrMagnitude < 1e-10f) return false;
-            ldir = SafeNormalize3(Vector3.Cross(normal, sd));
-            if (ldir.sqrMagnitude < 1e-10f) return false;
-            origin = b; return true;
-        }
-        Vector3 a = curve.MapToWorld(pts[(i - 1 + n) % n]);
-        Vector3 c = curve.MapToWorld(pts[(i + 1) % n]);
-        Vector3 uIn = SafeNormalize3(b - a);
-        Vector3 vOut = SafeNormalize3(c - b);
-        if (uIn.sqrMagnitude < 1e-10f || vOut.sqrMagnitude < 1e-10f) return false;
-        if (Vector3.Dot(uIn, vOut) > 0.9999f)
-            ldir = SafeNormalize3(Vector3.Cross(normal, uIn)); // straight → perpendicular / 直线贯通→垂线
-        else
-            ldir = SafeNormalize3(uIn - vOut);                 // reflex bisector / 反射角线
-        if (ldir.sqrMagnitude < 1e-10f) return false;
-        origin = b; return true;
-    }
-
-    /// <summary>
-    /// Computes the advanced-fit footprint rectangle for micro-segment i: `length` = along-segment extent,
-    /// `width` = 2 × FitSizeScale, and `alongCenter` = the footprint center's along-segment offset from the
-    /// segment center (the object must be shifted by this to align with the footprint, filling the gap on the
-    /// bend side without sticking out on the endpoint side). / 计算进阶小线段 i 的足迹矩形：length=沿段跨度，
-    /// width=2×FitSizeScale，alongCenter=足迹中心相对段中心的沿段偏移（物体需按此偏移对齐足迹，才能在弯折侧
-    /// 填缺口、而不在端点侧凸出）。</summary>
-    private static bool TryComputeAdvancedFitRect(BezierCurve curve, List<Vector2> pts, int i, out float length, out float width, out float alongCenter)
-    {
-        length = 0f; width = 0f; alongCenter = 0f;
-        if (pts == null || curve == null || curve.Segments == null || i < 0 || i + 1 >= pts.Count
-            || i >= curve.Segments.Count) return false;
-        var seg = curve.Segments[i];
-        width = 2f * Mathf.Max(0f, seg.FitSizeScale);
-        Vector3 normal = curve.PlaneNormal;
-        Vector3 a = curve.MapToWorld(pts[i]);
-        Vector3 b = curve.MapToWorld(pts[i + 1]);
-        Vector3 dir = SafeNormalize3(b - a);
-        if (dir.sqrMagnitude < 1e-10f) return false;
-        Vector3 center = (a + b) * 0.5f;
-        float segLen = Vector3.Distance(a, b);
-
-        if (!TryBoundaryLine(curve, pts, normal, i, out Vector3 b0, out Vector3 d0)) return false;
-        if (!TryBoundaryLine(curve, pts, normal, i + 1, out Vector3 b1, out Vector3 d1)) return false;
-
-        float minA = float.MaxValue, maxA = float.MinValue;
-        float div = Mathf.Max(0f, seg.FitSizeScale);
-        for (int s = -1; s <= 1; s += 2)
-        {
-            Vector3 nrm = SafeNormalize3(Vector3.Cross(normal, dir));
-            if (nrm.sqrMagnitude < 1e-10f) continue;
-            Vector3 po = center + nrm * (div * s);
-            if (IntersectLines(po, dir, b0, d0, normal, out Vector3 ip0))
-                minA = Mathf.Min(minA, Vector3.Dot(ip0 - center, dir));
-            if (IntersectLines(po, dir, b1, d1, normal, out Vector3 ip1))
-                maxA = Mathf.Max(maxA, Vector3.Dot(ip1 - center, dir));
-        }
-        if (minA > maxA) { minA = -segLen * 0.5f; maxA = segLen * 0.5f; }
-        length = maxA - minA;
-        alongCenter = (minA + maxA) * 0.5f;
-        return length > 1e-6f;
+        if (refs.Has == null) refs = CurveFitGeometry.ComputeBoundaryLines(curve, pts);
+        return CurveFitGeometry.ComputeAdvancedRect(curve, pts, i, refs, out _, out _, out length, out width, out alongCenter);
     }
 }

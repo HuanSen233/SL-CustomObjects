@@ -80,11 +80,18 @@ public static class CurveSceneRenderer
                 foreach (var curve in m.Curves)
                 {
                     if (!curve.IsVisible) continue;
-                    DrawCurveLine(curve);
+                    // Sample once and precompute advanced-fit boundary lines once per curve (shared by all draws).
+                    // 每曲线只采样一次并预计算一次进阶边界线（供各绘制共用）。
+                    var pts = curve.SamplePoints();
+                    bool is3d = curve.Is3D;
+                    List<Vector3> pts3d = is3d ? curve.SamplePoints3D() : null;
+                    bool advFit = !is3d && HasAdvancedFit(curve);
+                    CurveFitRefs refs = advFit ? CurveFitGeometry.ComputeBoundaryLines(curve, pts) : CurveFitRefs.Empty;
+                    DrawCurveLine(curve, pts, pts3d);
                     DrawVerticesAndHandles(curve);
-                    if (HasAdvancedFit(curve)) DrawFitReferenceLines(curve);
-                    if (w.PreviewStyle == PreviewStyle.Wireframe) DrawPreviewWireframes(curve);
-                    else if (w.PreviewStyle == PreviewStyle.Triangles) DrawPreviewTriangleMeshes(curve);
+                    if (advFit) DrawFitReferenceLines(curve, pts, refs);
+                    if (w.PreviewStyle == PreviewStyle.Wireframe) DrawPreviewWireframes(curve, pts, pts3d, refs);
+                    else if (w.PreviewStyle == PreviewStyle.Triangles) DrawPreviewTriangleMeshes(curve, pts, pts3d, refs);
                 }
             }
             DrawCursor(m);
@@ -95,33 +102,36 @@ public static class CurveSceneRenderer
             foreach (var curve in m.Curves)
             {
                 if (!curve.IsVisible) continue;
-                if (w.PreviewStyle == PreviewStyle.Wireframe) DrawPreviewWireframes(curve);
-                else if (w.PreviewStyle == PreviewStyle.Triangles) DrawPreviewTriangleMeshes(curve);
+                var pts = curve.SamplePoints();
+                bool is3d = curve.Is3D;
+                List<Vector3> pts3d = is3d ? curve.SamplePoints3D() : null;
+                bool advFit = !is3d && HasAdvancedFit(curve);
+                CurveFitRefs refs = advFit ? CurveFitGeometry.ComputeBoundaryLines(curve, pts) : CurveFitRefs.Empty;
+                if (w.PreviewStyle == PreviewStyle.Wireframe) DrawPreviewWireframes(curve, pts, pts3d, refs);
+                else if (w.PreviewStyle == PreviewStyle.Triangles) DrawPreviewTriangleMeshes(curve, pts, pts3d, refs);
             }
         }
     }
 
     /// <summary>Draws the curve polyline, colored by segment selection/lock state.
     /// 绘制曲线折线，按段选中/锁定状态着色</summary>
-    private static void DrawCurveLine(BezierCurve curve)
+    private static void DrawCurveLine(BezierCurve curve, List<Vector2> pts, List<Vector3> pts3d)
     {
         bool is3d = curve.Is3D;
         if (is3d)
         {
-            var pts3 = curve.SamplePoints3D();
-            if (pts3.Count < 2) return;
+            if (pts3d == null || pts3d.Count < 2) return;
             Color lockedColor = new Color(1f, 0.6f, 0.2f);
-            for (int i = 0; i < pts3.Count - 1; i++)
+            for (int i = 0; i < pts3d.Count - 1; i++)
             {
                 bool segSel = i < curve.Segments.Count && curve.Segments[i].IsSelected;
                 Handles.color = curve.IsLocked ? lockedColor : segSel ? SelectedSegmentColor : CurveColor;
-                Handles.DrawLine(pts3[i], pts3[i + 1], 2.5f);
+                Handles.DrawLine(pts3d[i], pts3d[i + 1], 2.5f);
             }
             return;
         }
 
-        var pts = curve.SamplePoints();
-        if (pts.Count < 2) return;
+        if (pts == null || pts.Count < 2) return;
 
         Color lockedColor2 = new Color(1f, 0.6f, 0.2f);
 
@@ -198,203 +208,66 @@ public static class CurveSceneRenderer
     }
 
     /// <summary>
-    /// Draws the advanced-fit reference lines for a 2D curve:
-    /// 1. Parallel reference lines per micro-segment (both sides, distance = FitSizeScale), truncated at the
-    ///    reflex/perpendicular lines bounding that micro-segment.
-    /// 2. Reflex-angle lines (at junctions) and endpoint perpendicular lines, truncated at the adjacent
-    ///    parallel lines (else a max-length fallback when no intersection exists).
-    /// 绘制 2D 曲线的进阶适应参考线：
-    /// 1. 每个小线段两侧的平行参考线（距离 = 适应尺寸缩放），在该小线段首尾两条参考线处截断；
-    /// 2. 反射角线（交界处）与端点垂线，在与相邻平行参考线的交点处截断（无交点则用最大长度兜底）。</summary>
-    private static void DrawFitReferenceLines(BezierCurve curve)
+    /// Draws the advanced-fit footprint rectangle of each advanced micro-segment: the primary/secondary side
+    /// parallels truncated at the two bounding reflex/perpendicular lines (drawn as a 4-corner rectangle), with
+    /// the primary side highlighted. Uses the shared CurveFitGeometry so preview == generated.
+    /// 绘制每个进阶小线段的进阶足迹矩形：主/副侧平行线与首尾两条参考线（反射角线/端点垂线）构成 4 角点矩形，
+    /// 主侧高亮。使用共享 CurveFitGeometry，保证预览 = 生成。</summary>
+    private static void DrawFitReferenceLines(BezierCurve curve, List<Vector2> pts, CurveFitRefs refs)
     {
-        if (curve == null || curve.Is3D) return;
-        var pts = curve.SamplePoints();
+        if (curve == null || curve.Is3D || pts == null || refs.Has == null) return;
         if (pts.Count < 3) return;
-        int n = pts.Count;
         Vector3 normal = curve.PlaneNormal;
-        bool isLoop = curve.IsLoop;
-
-        // Which micro-segments are Advanced (FitMode == 1): only these show reference lines, and only their
-        // adjacent corner reflex/perpendicular lines are shown. / 哪些小线段为进阶（FitMode==1）：仅这些显示参考线，
-        // 且仅显示它们相邻两角的反射角线/端点垂线。
         int segCount = curve.Segments != null ? curve.Segments.Count : 0;
-        bool[] isAdv = new bool[Mathf.Max(0, n - 1)];
-        for (int m = 0; m < isAdv.Length && m < segCount; m++)
-            isAdv[m] = curve.Segments[m].FitMode == 1;
 
-        // Build one reference line per sample point: reflex at an interior junction (and the loop joint),
-        // perpendicular at an open-curve endpoint. / 建立每个采样点的参考线：内部交界（及闭环连接点）为反射角线，
-        // 开放曲线端点为垂线。
-        var origin = new Vector3[n];
-        var ldir = new Vector3[n];
-        var has = new bool[n];
-        for (int i = 0; i < n; i++)
+        for (int m = 0; m < pts.Count - 1; m++)
         {
-            if (isLoop && i == n - 1) continue; // wrap point == pts[0]; skip duplicate / 环绕点即 pts[0]，跳过
-            bool endpoint = !isLoop && (i == 0 || i == n - 1);
-            Vector3 b = curve.MapToWorld(pts[i]);
-            if (endpoint)
-            {
-                int adj = i == 0 ? 1 : n - 2;
-                Vector3 sd = SafeNormalize3(curve.MapToWorld(pts[adj]) - b);
-                if (sd.sqrMagnitude < 1e-10f) continue;
-                Vector3 perp = SafeNormalize3(Vector3.Cross(normal, sd));
-                if (perp.sqrMagnitude < 1e-10f) continue;
-                origin[i] = b; ldir[i] = perp; has[i] = true;
-            }
-            else
-            {
-                Vector3 a, c;
-                if (isLoop && i == 0) { a = curve.MapToWorld(pts[n - 2]); c = curve.MapToWorld(pts[1]); }
-                else { a = curve.MapToWorld(pts[i - 1]); c = curve.MapToWorld(pts[i + 1]); }
-                Vector3 uIn = SafeNormalize3(b - a);
-                Vector3 vOut = SafeNormalize3(c - b);
-                if (uIn.sqrMagnitude < 1e-10f || vOut.sqrMagnitude < 1e-10f) continue;
-                Vector3 bdir;
-                if (Vector3.Dot(uIn, vOut) > 0.9999f)
-                {
-                    // Straight (both angles 180°): use a perpendicular boundary here (the "both-sides" reference),
-                    // so a straight-span micro-segment gets a simple bounded rectangle.
-                    // 直线贯通（内外角同为180°）：此处用垂线作为边界（双向参考线），直线段小段得到简单有界矩形。
-                    bdir = SafeNormalize3(Vector3.Cross(normal, uIn));
-                }
-                else
-                {
-                    // Reflex-angle center line: bisector of the outer/gap angle, pointing into the gap.
-                    // 反射角中心参考线：外角（缺口侧）的角平分线方向，指向缺口。
-                    bdir = SafeNormalize3(uIn - vOut);
-                }
-                if (bdir.sqrMagnitude < 1e-10f) continue;
-                origin[i] = b; ldir[i] = bdir; has[i] = true;
-            }
-        }
+            if (m >= segCount || curve.Segments[m].FitMode != 1) continue; // only advanced / 仅进阶
 
-        // Advanced-fit footprint per micro-segment: the primary/secondary side parallels truncated at the two
-        // bounding reflex/perpendicular lines, drawn as a quadrilateral of 4 corners. The primary side is highlighted.
-        // 每个进阶小线段的进阶足迹：主/副侧平行线与首尾两条参考线（反射角线/端点垂线）的交点构成 4 角点四角形；
-        // 主侧高亮显示（第二步：主/副侧判定 + 4 交点）。
-        for (int m = 0; m < n - 1; m++)
-        {
-            if (!isAdv[m]) continue; // only advanced micro-segments / 仅进阶小线段
-            if (!TryGetFootprintCorners(curve, pts, m, n, isLoop, normal, origin, ldir, has, out Vector3[] c))
+            if (!CurveFitGeometry.ComputeAdvancedRect(curve, pts, m, refs, out Vector3 center, out Vector3 segDir,
+                    out float length, out float width, out float alongCenter))
                 continue;
 
-            // Secondary edge + the two cross edges (reflex/endpoint-perpendicular truncated at the parallels).
-            // 副侧边 + 两条横截边（反射/端点垂线在平行线处截断）。
+            Vector3 nrm = SafeNormalize3(Vector3.Cross(normal, segDir));
+            if (nrm.sqrMagnitude < 1e-10f) continue;
+            float d = width * 0.5f;
+            float minA = alongCenter - length * 0.5f;
+            float maxA = alongCenter + length * 0.5f;
+
+            // Corner order [start(+d), end(+d), end(-d), start(-d)]. / 角点顺序 [起点(+d), 终点(+d), 终点(-d), 起点(-d)]。
+            Vector3 c0 = center + segDir * minA + nrm * d;
+            Vector3 c1 = center + segDir * maxA + nrm * d;
+            Vector3 c2 = center + segDir * maxA - nrm * d;
+            Vector3 c3 = center + segDir * minA - nrm * d;
+
+            // Secondary edge + the two cross edges. / 副侧边 + 两条横截边。
             Handles.color = CenterLineColor;
-            Handles.DrawLine(c[3], c[2]); // secondary parallel edge / 副侧平行边
-            Handles.DrawLine(c[1], c[2]); // end cross edge / 末端横边（终点反射/垂线）
-            Handles.DrawLine(c[0], c[3]); // start cross edge / 首端横边（起点反射/垂线）
-
-            // Primary side — highlighted. / 主侧 — 高亮。
+            Handles.DrawLine(c3, c2);
+            Handles.DrawLine(c1, c2);
+            Handles.DrawLine(c0, c3);
+            // Primary side highlighted. / 主侧高亮。
             Handles.color = PrimaryLineColor;
-            Handles.DrawLine(c[0], c[1]);
-
+            Handles.DrawLine(c0, c1);
             // Corner markers. / 角点标记。
             Handles.color = CenterLineColor;
-            for (int k = 0; k < 4; k++)
-                Handles.SphereHandleCap(0, c[k], Quaternion.identity, 0.03f, EventType.Repaint);
+            Handles.SphereHandleCap(0, c0, Quaternion.identity, 0.03f, EventType.Repaint);
+            Handles.SphereHandleCap(0, c1, Quaternion.identity, 0.03f, EventType.Repaint);
+            Handles.SphereHandleCap(0, c2, Quaternion.identity, 0.03f, EventType.Repaint);
+            Handles.SphereHandleCap(0, c3, Quaternion.identity, 0.03f, EventType.Repaint);
         }
-    }
-
-    /// <summary>
-    /// Computes the rectangle footprint of an advanced micro-segment: the bounding parallelogram of the 4 raw
-    /// reflex-line intersections is snapped to the segment frame (along = min/max of the intersections projected
-    /// onto the segment direction, across = ±FitSizeScale), so the object renders as a rectangle. At a bend this
-    /// stretches toward the reflex center (fills the outer gap) while the inner side overlaps (clips).
-    /// 计算进阶小线段的矩形足迹：把 4 个原始反射线交点归整到小线段坐标系（沿段方向取交点的 min/max 跨度，
-    /// 横跨 ±FitSizeScale），使物体呈矩形。弯折处向反射角中心拉伸（填外角缺口），内角则重叠（穿模）。
-    /// </summary>
-    private static bool TryGetFootprintCorners(BezierCurve curve, List<Vector2> pts, int m, int n, bool isLoop,
-        Vector3 normal, Vector3[] refOrigin, Vector3[] refDir, bool[] hasRef,
-        out Vector3[] corners)
-    {
-        corners = new Vector3[4];
-        Vector3 a = curve.MapToWorld(pts[m]);
-        Vector3 b = curve.MapToWorld(pts[m + 1]);
-        Vector3 dir = SafeNormalize3(b - a);
-        if (dir.sqrMagnitude < 1e-10f) return false;
-        Vector3 nrm = SafeNormalize3(Vector3.Cross(normal, dir));
-        if (nrm.sqrMagnitude < 1e-10f) return false;
-        float dist = Mathf.Max(0f, curve.Segments.Count > m ? curve.Segments[m].FitSizeScale : 0.5f);
-        Vector3 center = (a + b) * 0.5f;
-        int startIdx = m;
-        int endIdx = (isLoop && m + 1 == n - 1) ? 0 : m + 1; // loop wrap end → joint at 0 / 闭环环绕末端→连接点0
-
-        // Snapshot the along-segment extent from both sides' intersections with the start/end reference lines.
-        // 用两侧平行线与起/终参考线的交点快照沿段方向的跨度。
-        float minA = float.MaxValue, maxA = float.MinValue;
-        for (int si = 0; si < 2; si++)
-        {
-            int s = si == 0 ? 1 : -1;
-            if (!TryGetParallel(curve, pts, m, s, normal, out Vector3 po, out Vector3 pd)) return false;
-            if (hasRef[startIdx] && IntersectLines(po, dir, refOrigin[startIdx], refDir[startIdx], normal, out Vector3 ipS))
-                minA = Mathf.Min(minA, Vector3.Dot(ipS - center, dir));
-            if (hasRef[endIdx] && IntersectLines(po, dir, refOrigin[endIdx], refDir[endIdx], normal, out Vector3 ipE))
-                maxA = Mathf.Max(maxA, Vector3.Dot(ipE - center, dir));
-        }
-        // Degenerate fallback: bound to the segment itself. / 退化兜底：取段自身跨度。
-        float segHalf = Vector3.Distance(a, b) * 0.5f;
-        if (minA > maxA) { minA = -segHalf; maxA = segHalf; }
-
-        // Rectangle corners: [start(+d), end(+d), end(-d), start(-d)] in the segment frame.
-        // 矩形角点：[起点(+d), 终点(+d), 终点(-d), 起点(-d)]（小线段坐标系）。
-        corners[0] = center + dir * minA + nrm * dist;
-        corners[1] = center + dir * maxA + nrm * dist;
-        corners[2] = center + dir * maxA - nrm * dist;
-        corners[3] = center + dir * minA - nrm * dist;
-        return true;
-    }
-
-    /// <summary>Gets the parallel reference line (origin + in-plane direction) for micro-segment m on side s (±1),
-    /// offset by FitSizeScale from the segment center. / 获取小线段 m 在 s（±1）侧的平行参考线（原点+平面内方向），
-    /// 距段中心偏移 适应尺寸缩放。</summary>
-    private static bool TryGetParallel(BezierCurve curve, List<Vector2> pts, int m, int s, Vector3 normal, out Vector3 origin, out Vector3 dir)
-    {
-        origin = Vector3.zero; dir = Vector3.zero;
-        if (pts == null || m < 0 || m + 1 >= pts.Count) return false;
-        Vector3 a = curve.MapToWorld(pts[m]);
-        Vector3 b = curve.MapToWorld(pts[m + 1]);
-        dir = SafeNormalize3(b - a);
-        if (dir.sqrMagnitude < 1e-10f) return false;
-        Vector3 nrm = SafeNormalize3(Vector3.Cross(normal, dir));
-        if (nrm.sqrMagnitude < 1e-10f) return false;
-        float dist = Mathf.Max(0f, curve.Segments.Count > m ? curve.Segments[m].FitSizeScale : 0.5f);
-        origin = (a + b) * 0.5f + nrm * (dist * s);
-        return true;
-    }
-
-    /// <summary>Intersects two coplanar infinite lines (in the curve's plane). Returns false when parallel.
-    /// 求平面内两条无限直线的交点（在曲线平面内）；平行时返回 false。</summary>
-    private static bool IntersectLines(Vector3 o1, Vector3 d1, Vector3 o2, Vector3 d2, Vector3 normal, out Vector3 point)
-    {
-        point = Vector3.zero;
-        float denom = Vector3.Dot(Vector3.Cross(d1, d2), normal);
-        if (Mathf.Abs(denom) < 1e-8f) return false;
-        float t = Vector3.Dot(Vector3.Cross(o2 - o1, d2), normal) / denom;
-        point = o1 + d1 * t;
-        return true;
     }
 
     /// <summary>Draws preview wireframes (one block per micro-segment, differentiated by PrimitiveType).
     /// 绘制预览线框（每个小线段对应的物块，按 PrimitiveType 差异化）</summary>
-    private static void DrawPreviewWireframes(BezierCurve curve)
+    private static void DrawPreviewWireframes(BezierCurve curve, List<Vector2> pts, List<Vector3> pts3d, CurveFitRefs refs)
     {
-        var pts = curve.SamplePoints();
-        if (pts.Count < 2) return;
-
+        if (pts == null || pts.Count < 2) return;
         bool is3d = curve.Is3D;
-        List<Vector3> pts3d = null;
-        if (is3d)
-        {
-            pts3d = curve.SamplePoints3D();
-            if (pts3d.Count < 2) return;
-        }
+        if (is3d && (pts3d == null || pts3d.Count < 2)) return;
 
         for (int i = 0; i < pts.Count - 1 && i < curve.Segments.Count; i++)
         {
-            if (!CurvePlacementHelper.ComputePlacement(curve, i, pts, pts3d, out Vector3 genPos, out Quaternion rot, out Vector3 scale))
+            if (!CurvePlacementHelper.ComputePlacement(curve, i, pts, pts3d, refs, out Vector3 genPos, out Quaternion rot, out Vector3 scale))
                 continue;
             var seg = curve.Segments[i];
 
@@ -515,22 +388,16 @@ public static class CurveSceneRenderer
 
     /// <summary>Draws the triangle preview: the real mesh edge set of each segment's primitive.
     /// 绘制三角面预览：每段物体的真实网格边集合</summary>
-    private static void DrawPreviewTriangleMeshes(BezierCurve curve)
+    private static void DrawPreviewTriangleMeshes(BezierCurve curve, List<Vector2> pts, List<Vector3> pts3d, CurveFitRefs refs)
     {
-        var pts = curve.SamplePoints();
-        if (pts.Count < 2) return;
+        if (pts == null || pts.Count < 2) return;
 
         bool is3d = curve.Is3D;
-        List<Vector3> pts3d = null;
-        if (is3d)
-        {
-            pts3d = curve.SamplePoints3D();
-            if (pts3d.Count < 2) return;
-        }
+        if (is3d && (pts3d == null || pts3d.Count < 2)) return;
 
         for (int i = 0; i < pts.Count - 1 && i < curve.Segments.Count; i++)
         {
-            if (!CurvePlacementHelper.ComputePlacement(curve, i, pts, pts3d, out Vector3 genPos, out Quaternion rot, out Vector3 scale))
+            if (!CurvePlacementHelper.ComputePlacement(curve, i, pts, pts3d, refs, out Vector3 genPos, out Quaternion rot, out Vector3 scale))
                 continue;
             var seg = curve.Segments[i];
             if (!TryGetPreviewMesh(seg.PrimitiveType, out var mesh, out var local))

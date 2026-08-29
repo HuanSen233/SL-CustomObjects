@@ -40,10 +40,13 @@ public static class CurveObjectBuilder
         bool is3d = curve.Is3D;
         List<Vector3> pts3d = null;
         if (is3d) pts3d = curve.SamplePoints3D();
+        // Precompute the advanced-fit boundary lines once (unused for non-advanced / 3D). / 预计算进阶适应边界线一次
+        // （非进阶/3D 时不用）。
+        CurveFitRefs refs = is3d ? CurveFitRefs.Empty : CurveFitGeometry.ComputeBoundaryLines(curve, pts);
 
         for (int i = 0; i < totalSegs; i++)
         {
-            if (!CurvePlacementHelper.ComputePlacement(curve, i, pts, pts3d, out Vector3 pos, out Quaternion rot, out Vector3 scale))
+            if (!CurvePlacementHelper.ComputePlacement(curve, i, pts, pts3d, refs, out Vector3 pos, out Quaternion rot, out Vector3 scale))
                 continue;
             var seg = curve.Segments[i];
             Spawn(pos, rot, scale, CurveTool.Instance?.GenerationColor ?? Color.white, parent, i, seg.PrimitiveType);
