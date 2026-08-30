@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using DONT_TOUCH.Scripts.BlockComponents;
 using UnityEditor;
 using UnityEngine;
 
@@ -7,9 +6,9 @@ namespace TriangleTool.EditorTools
 {
     /// <summary>
     /// Triangle Tool — EditorWindow skeleton (fields, lifecycle, persistence, business logic).
-    /// UI 重构参考 CurvesTool：partial class EditorWindow + 双标签页 + 折叠区 + L10n 双语 + JSON 设置持久化。
-    /// UI panels are split into TriangleTool.EditTab.cs and TriangleTool.SettingsTab.cs.
-    /// UI 面板拆分至 TriangleTool.EditTab.cs 和 TriangleTool.SettingsTab.cs。
+    /// UI 重构参考 CurvesTool：partial class EditorWindow + 三标签页（编辑/模型导入/设置） + 折叠区 + L10n 双语 + JSON 设置持久化。
+    /// UI panels are split into TriangleTool.EditTab.cs, TriangleTool.ImportTab.cs and TriangleTool.SettingsTab.cs.
+    /// UI 面板拆分至 TriangleTool.EditTab.cs、TriangleTool.ImportTab.cs 和 TriangleTool.SettingsTab.cs。
     /// </summary>
     public partial class TriangleTool : EditorWindow
     {
@@ -19,8 +18,13 @@ namespace TriangleTool.EditorTools
         public static readonly Color UiCreateBlue = new Color(0.3f, 0.5f, 0.9f);
         public static readonly Color UiCopyBlue = new Color(0.5f, 0.75f, 1f);
         public static readonly Color UiDeleteRed = new Color(0.9f, 0.3f, 0.3f);
+        public static readonly Color UiDeleteAllRed = new Color(0.85f, 0.3f, 0.3f);
         public static readonly Color UiSelectedBg = new Color(0.3f, 0.6f, 1f, 0.3f);
         public static readonly Color UiDisabledGray = new Color(0.5f, 0.5f, 0.5f);
+        public static readonly Color UiPlaceholderGray = new Color(0.4f, 0.4f, 0.4f);
+        public static readonly Color UiLockedOrange = new Color(0.9f, 0.6f, 0.3f);
+        public static readonly Color UiSelectedBlue = new Color(0.3f, 0.6f, 1f);
+        public static readonly Color UiPreviewBlue = new Color(0.4f, 0.7f, 1f);
 
         // ===== Default value constants (single source shared by field init and Reset) / 默认值常量（唯一来源） =====
         public const float DefaultAccuracy = 0.001f;
@@ -28,6 +32,8 @@ namespace TriangleTool.EditorTools
         public const float DefaultRectangleTolerance = 1e-4f;
         public static readonly Color DefaultFaceColor = new Color(1f, 0.3f, 0.7f, 1f);
         public static readonly Color DefaultFallbackColor = Color.white;
+        public static readonly Vector3 DefaultSnapGridSize = new Vector3(0.5f, 0.5f, 0.5f);
+        public static readonly Vector3 DefaultSnapIncrementMove = Vector3.one;
 
         // ===== Configurable properties (persisted) / 可配置属性（持久化） =====
         public TriangleBuildMode Mode = TriangleBuildMode.Exact;
@@ -40,24 +46,34 @@ namespace TriangleTool.EditorTools
         public Color FaceColor = DefaultFaceColor;
         public Color FallbackColor = DefaultFallbackColor;
 
+        // ===== Scene data manager (faces) / 场景数据管理器（三角面） =====
+        private TriangleFaceManager _manager;
+        /// <summary>Edit mode: scene point dragging + wireframes are active. / 编辑模式：场景点拖拽与线框生效。</summary>
+        private bool _editMode = true;
+        /// <summary>Preview: highlight triangle face outlines (non-editing presentation). / 预览：高亮三角形轮廓（非编辑展示）。</summary>
+        private bool _previewOn;
+
+        public bool IsEditMode => _editMode;
+        public bool IsPreviewOn => _previewOn;
+
+        // ===== Move-tool / snapping settings / 移动工具与吸附设置 =====
+        /// <summary>Move face points with the Unity Move tool (W) instead of the built-in drag; on when true,
+        /// the tool's own point drag is suppressed. / 使用 Unity 移动工具（W）移动面的点而非工具自带拖拽；开启时屏蔽工具自身点拖拽。</summary>
+        public bool UseMoveTool = true;
+        /// <summary>Use the editor's snap settings (EditorSnapSettings); disable to use tool-local values.
+        /// 使用编辑器吸附设定；关闭则用工具自身步长。</summary>
+        public bool UseEditorSnapSettings = true;
+        public Vector3 SnapGridSize = DefaultSnapGridSize;
+        public Vector3 SnapIncrementMove = DefaultSnapIncrementMove;
+
         // ===== Window state / 窗口状态 =====
         public static TriangleTool Instance { get; private set; }
         private int _selectedTab;
         private string[] _tabs;
-        private string[] Tabs => _tabs ??= new[] { TriangleL10n.T("edit_tab"), TriangleL10n.T("settings_tab") };
+        private string[] Tabs => _tabs ??= new[] { TriangleL10n.T("edit_tab"), TriangleL10n.T("import_tab"), TriangleL10n.T("settings_tab") };
 
         // ===== Edit-tab foldout state / 编辑页折叠状态 =====
-        private bool _foldoutSingle = true;
-        private bool _foldoutObj = true;
         private bool _foldoutStats = true;
-
-        // ===== Single-triangle edit buffers / 单三角形编辑缓冲 =====
-        private Vector3 _p1 = new Vector3(0f, 0f, 0f);
-        private Vector3 _p2 = new Vector3(2f, 0f, 0f);
-        private Vector3 _p3 = new Vector3(0.3f, 1.6f, 0f);
-        private float _scale = 1f;
-        private GameObject _markersRoot;
-        private readonly List<GameObject> _markers = new List<GameObject>();
 
         // ===== OBJ section state / OBJ 面板状态 =====
         private string _objPath;
@@ -78,16 +94,13 @@ namespace TriangleTool.EditorTools
             w.Show();
         }
 
-        /// <summary>Menu: create a quick example triangle in the scene for verification.
-        /// 菜单：在场景中创建示例三角形用于验证。</summary>
+        /// <summary>Menu: add a quick example triangle face to the list for verification.
+        /// 菜单：向列表添加示例三角面用于验证。</summary>
         [MenuItem("Tools/Triangle Tool/Create Example Triangle")]
         public static void CreateExample()
         {
             var w = GetWindow<TriangleTool>("Triangle Tool");
-            w._p1 = new Vector3(0f, 0f, 0f);
-            w._p2 = new Vector3(2f, 0f, 0f);
-            w._p3 = new Vector3(0.3f, 1.6f, 0f);
-            w.BuildSingleTriangle();
+            w.AddExampleFace();
             w.Show();
         }
 
@@ -105,7 +118,10 @@ namespace TriangleTool.EditorTools
         private void OnEnable()
         {
             Instance = this;
+            _manager = TriangleFaceManager.Instance;
             LoadSettings();
+            TriangleSceneRenderer.Register();
+            TriangleSceneEditor.Register();
             UpdateTitle();
         }
 
@@ -113,6 +129,10 @@ namespace TriangleTool.EditorTools
         {
             SaveSettings();
             if (Instance == this) Instance = null;
+            _editMode = false;
+            TriangleSceneRenderer.Unregister();
+            TriangleSceneEditor.Unregister();
+            SceneView.RepaintAll();
         }
 
         private void UpdateTitle()
@@ -125,12 +145,17 @@ namespace TriangleTool.EditorTools
 
         private void OnGUI()
         {
+            // Rebind after scene switches: the cached _manager belongs to the scene active when the window opened.
+            // 场景切换后重新绑定：缓存的 _manager 属于窗口打开时的场景，可能已过期。
+            if (_manager == null || _manager != TriangleFaceManager.Instance) _manager = TriangleFaceManager.Instance;
+
             DrawHeader();
             _selectedTab = Mathf.Clamp(_selectedTab, 0, Tabs.Length - 1);
             _selectedTab = GUILayout.Toolbar(_selectedTab, Tabs);
             GUILayout.Space(6);
             if (_selectedTab == 0) TabEdit();
-            else if (_selectedTab == 1) TabSettings();
+            else if (_selectedTab == 1) TabModelImport();
+            else if (_selectedTab == 2) TabSettings();
         }
 
         /// <summary>Draws the centered window header. / 绘制居中窗口标题头。</summary>
@@ -160,30 +185,48 @@ namespace TriangleTool.EditorTools
             };
         }
 
-        /// <summary>Build (or rebuild) the single triangle with markers. / 构建（或重建）单三角形与标记。</summary>
-        private void BuildSingleTriangle()
+        /// <summary>Adds an example triangle face to the selected scene (used by the Create Example menu).
+        /// 向选中场景添加一个示例三角面（Create Example 菜单用）。</summary>
+        public void AddExampleFace()
         {
-            ClearSingleModel();
-
-            Vector3 centroid = (_p1 + _p2 + _p3) / 3f;
-            float s = Mathf.Max(_scale, 1e-6f);
-            Vector3 p1 = centroid + (_p1 - centroid) * s;
-            Vector3 p2 = centroid + (_p2 - centroid) * s;
-            Vector3 p3 = centroid + (_p3 - centroid) * s;
-
-            var builder = CreateConfiguredBuilder();
-            builder.EnsureRoot("TriangleModel (Tool)");
-            builder.BuildOneTriangle(new TriangleData(p1, p2, p3, FaceColor));
-            builder.Finish();
-            _lastBuilder = builder;
-
-            CreateMarkers(p1, p2, p3);
-            Selection.activeGameObject = builder.Root;
+            _manager = TriangleFaceManager.Instance;
+            if (_manager == null) return;
+            var face = _manager.AddFace("ExampleTriangle");
+            if (face == null) return;
+            face.P1 = new Vector3(0f, 0f, 0f);
+            face.P2 = new Vector3(2f, 0f, 0f);
+            face.P3 = new Vector3(0.3f, 1.6f, 0f);
+            _manager.MarkDirty();
             SceneView.RepaintAll();
         }
 
-        /// <summary>Clear the single-triangle model and markers. / 清除单三角形模型与标记。</summary>
-        private void ClearSingleModel()
+        /// <summary>Builds (or rebuilds) the generated model from all enabled + visible faces.
+        /// 从所有启用且可见的三角面构建（或重建）生成模型。</summary>
+        private void GenerateFaces()
+        {
+            if (_manager == null || _manager.Faces.Count == 0) return;
+
+            ClearGeneratedModel();
+
+            var builder = CreateConfiguredBuilder();
+            builder.EnsureRoot("TriangleModel (Tool)");
+            foreach (var face in _manager.Faces)
+            {
+                if (face == null || !face.IsEnabled || !face.IsVisible) continue;
+                builder.BuildOneTriangle(new TriangleData(face.P1, face.P2, face.P3, face.Color));
+            }
+            builder.Finish();
+            _lastBuilder = builder;
+
+            if (builder.Root != null)
+                Selection.activeGameObject = builder.Root;
+
+            SceneView.RepaintAll();
+        }
+
+        /// <summary>Clears the previously generated face model (rebuild on next generate).
+        /// 清除之前生成的三角面模型（下次生成时重建）。</summary>
+        private void ClearGeneratedModel()
         {
             if (_lastBuilder != null && _lastBuilder.Root != null &&
                 _lastBuilder.Root.name == "TriangleModel (Tool)")
@@ -191,64 +234,7 @@ namespace TriangleTool.EditorTools
                 _lastBuilder.DestroyImmediate();
                 _lastBuilder = null;
             }
-
-            foreach (GameObject marker in _markers)
-            {
-                if (marker != null)
-                    DestroyImmediate(marker);
-            }
-            _markers.Clear();
-
-            if (_markersRoot != null)
-            {
-                DestroyImmediate(_markersRoot);
-                _markersRoot = null;
-            }
-
             SceneView.RepaintAll();
-        }
-
-        /// <summary>Read the first 3 selected transforms as triangle vertices. / 读取选中前 3 个 Transform 作为三角形顶点。</summary>
-        private void ReadFromSelection()
-        {
-            var selected = Selection.transforms;
-            if (selected == null || selected.Length < 3)
-            {
-                EditorUtility.DisplayDialog(TriangleL10n.T("window_title"),
-                    TriangleL10n.T("read_selection"), TriangleL10n.T("ok"));
-                return;
-            }
-
-            _p1 = selected[0].position;
-            _p2 = selected[1].position;
-            _p3 = selected[2].position;
-            Repaint();
-        }
-
-        /// <summary>Create small colored sphere blocks (project Sphere.prefab) marking the three vertices.
-        /// 创建标记三个顶点的小彩球（项目 Sphere.prefab）。</summary>
-        private void CreateMarkers(Vector3 p1, Vector3 p2, Vector3 p3)
-        {
-            EmptyComponent empty = ProjectBlockFactory.CreateEmpty("TriangleModel Markers");
-            _markersRoot = empty != null ? empty.gameObject : new GameObject("TriangleModel Markers");
-
-            _markers.Add(CreateMarker(p1, Color.red));
-            _markers.Add(CreateMarker(p2, Color.green));
-            _markers.Add(CreateMarker(p3, Color.blue));
-
-            foreach (GameObject marker in _markers)
-                marker.transform.SetParent(_markersRoot.transform, true);
-        }
-
-        private static GameObject CreateMarker(Vector3 position, Color color)
-        {
-            PrimitiveComponent sphere = ProjectBlockFactory.CreatePrimitive(
-                PrimitiveType.Sphere, "VertexMarker", color, visible: true, collidable: false);
-
-            GameObject go = sphere != null ? sphere.gameObject : GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            go.transform.position = position;
-            go.transform.localScale = Vector3.one * 0.08f;
-            return go;
         }
 
         // ===== OBJ business logic / OBJ 业务逻辑 =====
@@ -316,6 +302,8 @@ namespace TriangleTool.EditorTools
                 _objSession.Cancel();
         }
 
+        /// <summary>Clears the OBJ build session + model (called automatically before a new OBJ load).
+        /// 清除 OBJ 构建会话与模型（加载新 OBJ 前自动调用）。</summary>
         private void ClearObjModel()
         {
             if (_objSession != null)
@@ -355,6 +343,10 @@ namespace TriangleTool.EditorTools
             public bool Collidable;
             public Color FaceColor = DefaultFaceColor;
             public Color FallbackColor = DefaultFallbackColor;
+            public bool UseMoveTool = true;
+            public bool UseEditorSnapSettings = true;
+            public Vector3 SnapGridSize = DefaultSnapGridSize;
+            public Vector3 SnapIncrementMove = DefaultSnapIncrementMove;
             public int Language = 0; // 0=EN, 1=ZH
         }
 
@@ -373,6 +365,10 @@ namespace TriangleTool.EditorTools
                     Collidable = Collidable,
                     FaceColor = FaceColor,
                     FallbackColor = FallbackColor,
+                    UseMoveTool = UseMoveTool,
+                    UseEditorSnapSettings = UseEditorSnapSettings,
+                    SnapGridSize = SnapGridSize,
+                    SnapIncrementMove = SnapIncrementMove,
                     Language = (int)TriangleL10n.Current,
                 };
                 System.IO.File.WriteAllText(SettingsPath, JsonUtility.ToJson(s, prettyPrint: true));
@@ -396,6 +392,10 @@ namespace TriangleTool.EditorTools
                 Collidable = s.Collidable;
                 FaceColor = s.FaceColor;
                 FallbackColor = s.FallbackColor;
+                UseMoveTool = s.UseMoveTool;
+                UseEditorSnapSettings = s.UseEditorSnapSettings;
+                SnapGridSize = s.SnapGridSize;
+                SnapIncrementMove = s.SnapIncrementMove;
                 TriangleL10n.SetLanguage((TriangleL10n.Lang)s.Language);
             }
             catch { /* 忽略损坏的配置文件 */ }

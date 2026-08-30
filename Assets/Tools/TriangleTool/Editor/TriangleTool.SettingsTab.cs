@@ -34,6 +34,19 @@ namespace TriangleTool.EditorTools
 
             GUILayout.Space(12);
 
+            // ~ Input / 输入
+            EditorGUILayout.LabelField(TriangleL10n.T("input"), EditorStyles.boldLabel);
+            DrawSettingRow(TriangleL10n.T("use_move_tool"), () => { UseMoveTool = EditorGUILayout.Toggle(UseMoveTool); });
+            DrawSettingRow(TriangleL10n.T("use_editor_snap"), () => { UseEditorSnapSettings = EditorGUILayout.Toggle(UseEditorSnapSettings); });
+            if (!UseEditorSnapSettings)
+            {
+                DrawSettingRow(TriangleL10n.T("snap_grid"), () => { SnapGridSize = EditorGUILayout.Vector3Field(GUIContent.none, SnapGridSize); });
+                DrawSettingRow(TriangleL10n.T("snap_inc"), () => { SnapIncrementMove = EditorGUILayout.Vector3Field(GUIContent.none, SnapIncrementMove); });
+            }
+            if (GUI.changed) SaveSettings();
+
+            GUILayout.Space(12);
+
             // ~ Colors / 颜色
             EditorGUILayout.LabelField(TriangleL10n.T("color"), EditorStyles.boldLabel);
             DrawSettingRow(TriangleL10n.T("face_color"), () => { FaceColor = EditorGUILayout.ColorField(FaceColor); });
@@ -68,6 +81,10 @@ namespace TriangleTool.EditorTools
                 Collidable = false;
                 FaceColor = DefaultFaceColor;
                 FallbackColor = DefaultFallbackColor;
+                UseMoveTool = true;
+                UseEditorSnapSettings = true;
+                SnapGridSize = DefaultSnapGridSize;
+                SnapIncrementMove = DefaultSnapIncrementMove;
                 TriangleL10n.SetLanguage(TriangleL10n.Lang.EN);
                 UpdateTitle();
                 SaveSettings();

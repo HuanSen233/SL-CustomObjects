@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ToolLib;
 using UnityEditor;
 using UnityEngine;
 
@@ -67,33 +68,21 @@ public static partial class CurveSceneEditor
         return new Vector3(0f, height, 0f);
     }
 
-    /// <summary>Snaps a Vector3 to the nearest grid point by the given grid size (per-component, reusing SnapFloat's zero-guard).
-    /// 将 Vector3 按指定网格大小吸附到最近的网格点（逐分量复用 SnapFloat 的除零保护）</summary>
+    /// <summary>Snaps a Vector3 to the nearest grid point by the given grid size (delegates to the shared SceneDragUtility).
+    /// 将 Vector3 按指定网格大小吸附到最近的网格点（转发到共享 SceneDragUtility）</summary>
     private static Vector3 SnapVector3(Vector3 value, Vector3 gridSize)
-    {
-        return new Vector3(
-            SnapFloat(value.x, gridSize.x),
-            SnapFloat(value.y, gridSize.y),
-            SnapFloat(value.z, gridSize.z)
-        );
-    }
+        => SceneDragUtility.SnapVector3(value, gridSize);
 
-    /// <summary>Snaps a float to the nearest grid point (returns the raw value when the grid is too small, preventing division by zero).
-    /// 将浮点数按指定网格大小吸附到最近的网格点（网格尺寸过小时直接返回原值，防止除零）</summary>
+    /// <summary>Snaps a float to the nearest grid point (delegates to the shared SceneDragUtility).
+    /// 将浮点数按指定网格大小吸附到最近的网格点（转发到共享 SceneDragUtility）</summary>
     private static float SnapFloat(float value, float gridSize)
-    {
-        if (gridSize < 0.0001f) return value;
-        return Mathf.Round(value / gridSize) * gridSize;
-    }
+        => SceneDragUtility.SnapFloat(value, gridSize);
 
     /// <summary>Current snap step: EditorSnapSettings.move in editor mode (follows Edit > Snap Settings), tool-local values otherwise.
     /// 当前吸附步长：编辑器模式使用 EditorSnapSettings.move（跟随 Edit > Snap Settings），工具模式使用工具自身设置</summary>
     private static Vector3 GetSnapStep(CurveTool w, bool ctrlSnap)
-    {
-        if (w != null && w.UseEditorSnapSettings)
-            return EditorSnapSettings.move;
-        return ctrlSnap ? w.SnapIncrementMove : w.SnapGridSize;
-    }
+        => SceneDragUtility.GetSnapStep(w != null && w.UseEditorSnapSettings, ctrlSnap,
+            w != null ? w.SnapGridSize : Vector3.one, w != null ? w.SnapIncrementMove : Vector3.one);
 
     private static Vector2 GetElementValue(CurveManager m)
     {
@@ -170,23 +159,13 @@ public static partial class CurveSceneEditor
         }
     }
 
-    /// <summary>Closest distance between a ray and a 3D point. / 射线到 3D 点的最近距离</summary>
+    /// <summary>Closest distance between a ray and a 3D point (delegates to the shared SceneDragUtility).
+    /// 射线到 3D 点的最近距离（转发到共享 SceneDragUtility）</summary>
     private static float RayPointDist(Ray ray, Vector3 point)
-    {
-        Vector3 toPoint = point - ray.origin;
-        float t = Vector3.Dot(toPoint, ray.direction);
-        if (t < 0f) return float.MaxValue;
-        return Vector3.Distance(ray.GetPoint(t), point);
-    }
+        => SceneDragUtility.RayPointDist(ray, point);
 
     private static float PointToSegDist(Vector2 p, Vector2 a, Vector2 b)
-    {
-        Vector2 ab = b - a;
-        float ls = ab.sqrMagnitude;
-        if (ls < 0.0001f) return Vector2.Distance(p, a);
-        float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / ls);
-        return Vector2.Distance(p, a + t * ab);
-    }
+        => SceneDragUtility.PointToSegDist(p, a, b);
 
     private static Vector2 CubicBez(Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3, float t)
     {

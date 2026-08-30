@@ -1,16 +1,22 @@
-using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
 namespace TriangleTool.EditorTools
 {
     /// <summary>
-    /// Triangle Tool — Edit tab (mode bar, single triangle, OBJ model, statistics).
-    /// UI 结构参考 CurvesTool.EditTab：模式栏 + 折叠区 + 彩色按钮行 + 图例小字。
-    /// 三角面工具 — 编辑 Tab（模式栏、单三角形、OBJ 模型、统计）。
+    /// Triangle Tool — Edit tab (mode bar, triangle-face list, face properties, generate, statistics).
+    /// UI 结构参考 CurvesTool.EditTab：模式栏 + 折叠区 + 彩色按钮行 + 图例小字（标签左 1/3、控件右 2/3）。
+    /// 三角面工具 — 编辑 Tab（模式栏、三角面列表、三角面属性、生成、统计）。
     /// </summary>
     public partial class TriangleTool
     {
+        // ===== Edit-tab foldout + buffer state / 编辑页折叠与缓冲状态 =====
+        private bool _foldoutTriList = true;
+        private bool _foldoutTriProps = true;
+        private bool _foldoutGen = true;
+        private string _newFaceName = "NewTriangle";
+        private Vector2 _scrollTriList;
+
         // ============================================================
         //  Edit Tab / 编辑 Tab
         // ============================================================
@@ -22,129 +28,235 @@ namespace TriangleTool.EditorTools
             Vector2 scroll = Vector2.zero;
             scroll = EditorGUILayout.BeginScrollView(scroll);
 
-            // ~ Single triangle / 单三角形
-            _foldoutSingle = EditorGUILayout.Foldout(_foldoutSingle, TriangleL10n.T("single_triangle"), true);
-            if (_foldoutSingle) DrawSingleTriangle();
+            // ~ Triangle-face list (create/select, first) / 三角面列表（创建/选择，最先）
+            _foldoutTriList = EditorGUILayout.Foldout(_foldoutTriList, TriangleL10n.T("tri_list"), true);
+            if (_foldoutTriList) DrawFaceList();
 
-            // ~ OBJ model / OBJ 模型
-            _foldoutObj = EditorGUILayout.Foldout(_foldoutObj, TriangleL10n.T("obj_model"), true);
-            if (_foldoutObj) DrawObjModel();
+            // ~ Selected face properties / 选中面属性
+            _foldoutTriProps = EditorGUILayout.Foldout(_foldoutTriProps, TriangleL10n.T("tri_props"), true);
+            if (_foldoutTriProps) DrawFaceProperties();
+
+            // ~ Generate model / 生成模型
+            _foldoutGen = EditorGUILayout.Foldout(_foldoutGen, TriangleL10n.T("generate_section"), true);
+            if (_foldoutGen) DrawGenerateButton();
 
             // ~ Statistics / 统计
             _foldoutStats = EditorGUILayout.Foldout(_foldoutStats, TriangleL10n.T("statistics"), true);
             if (_foldoutStats) DrawStatsSection();
 
             EditorGUILayout.Space(6);
-            EditorGUILayout.LabelField(TriangleL10n.T("mode_legend"), EditorStyles.miniLabel);
+            EditorGUILayout.LabelField(TriangleL10n.T("tri_row_legend"), EditorStyles.miniLabel);
 
             EditorGUILayout.EndScrollView();
         }
 
-        /// <summary>Mode bar: three build-mode toggles (V1/V2/V3), active mode highlighted green.
-        /// 模式栏：三个构建模式开关（V1/V2/V3），当前模式绿色高亮。</summary>
+        /// <summary>Mode bar: Edit Mode takes 4/5 of the row, Preview takes 1/5 (highlight triangle outlines).
+        /// 模式栏：编辑模式占行宽 4/5，预览占 1/5（高亮三角面轮廓）。</summary>
         private void DrawModeBar()
         {
             EditorGUILayout.BeginHorizontal();
 
-            float w = (EditorGUIUtility.currentViewWidth - 8f) / 3f;
-            float h = 26f;
+            float previewW = EditorGUIUtility.currentViewWidth * 0.2f;
+            float editW = EditorGUIUtility.currentViewWidth * 0.8f - 4f;
 
-            GUI.backgroundColor = Mode == TriangleBuildMode.Exact ? UiCreateGreen : Color.white;
-            bool v1 = GUILayout.Toggle(Mode == TriangleBuildMode.Exact, TriangleL10n.T("mode_v1"), "Button", GUILayout.Height(h), GUILayout.Width(w));
+            // Edit Mode (4/5) / 编辑模式（4/5）
+            GUI.backgroundColor = _editMode ? UiActionGreen : Color.white;
+            bool newEdit = GUILayout.Toggle(_editMode, $" {TriangleL10n.T("edit_mode")}", "Button", GUILayout.Height(28), GUILayout.Width(editW));
             GUI.backgroundColor = Color.white;
-            if (v1 && Mode != TriangleBuildMode.Exact) { Mode = TriangleBuildMode.Exact; _objError = null; }
+            if (newEdit != _editMode) { _editMode = newEdit; SceneView.RepaintAll(); }
 
-            GUI.backgroundColor = Mode == TriangleBuildMode.StretchClustered ? UiCreateGreen : Color.white;
-            bool v2 = GUILayout.Toggle(Mode == TriangleBuildMode.StretchClustered, TriangleL10n.T("mode_v2"), "Button", GUILayout.Height(h), GUILayout.Width(w));
+            // Preview (1/5, a view mode alongside Edit Mode; toggles highlight on/off) / 预览（1/5，与编辑模式并列；切换高亮开关）
+            GUI.backgroundColor = _previewOn ? UiPreviewBlue : Color.white;
+            if (GUILayout.Button($" {TriangleL10n.T("preview")}", "Button", GUILayout.Height(28), GUILayout.Width(previewW)))
+            {
+                _previewOn = !_previewOn;
+                SceneView.RepaintAll();
+            }
             GUI.backgroundColor = Color.white;
-            if (v2 && Mode != TriangleBuildMode.StretchClustered) { Mode = TriangleBuildMode.StretchClustered; _objError = null; }
-
-            GUI.backgroundColor = Mode == TriangleBuildMode.Hierarchical ? UiCreateGreen : Color.white;
-            bool v3 = GUILayout.Toggle(Mode == TriangleBuildMode.Hierarchical, TriangleL10n.T("mode_v3"), "Button", GUILayout.Height(h), GUILayout.Width(w));
-            GUI.backgroundColor = Color.white;
-            if (v3 && Mode != TriangleBuildMode.Hierarchical) { Mode = TriangleBuildMode.Hierarchical; _objError = null; }
 
             EditorGUILayout.EndHorizontal();
         }
 
-        // ---------- Single triangle / 单三角形 ----------
+        // ---------- Triangle-face list / 三角面列表 ----------
 
-        private void DrawSingleTriangle()
+        /// <summary>Current manager faces list (nulled when the manager is unbound). / 当前管理的三角面列表（管理器未绑定时为 null）。</summary>
+        private System.Collections.Generic.List<TriangleFace> FaceList =>
+            _manager != null ? _manager.Faces : null;
+
+        private void DrawFaceList()
         {
-            _p1 = EditorGUILayout.Vector3Field(TriangleL10n.T("vertex_p1"), _p1);
-            _p2 = EditorGUILayout.Vector3Field(TriangleL10n.T("vertex_p2"), _p2);
-            _p3 = EditorGUILayout.Vector3Field(TriangleL10n.T("vertex_p3"), _p3);
-
-            if (GUILayout.Button(TriangleL10n.T("read_selection")))
-                ReadFromSelection();
-
-            EditorGUILayout.Space(4);
-            _scale = EditorGUILayout.FloatField(TriangleL10n.T("scale"), _scale);
-            FlipWinding = EditorGUILayout.Toggle(TriangleL10n.T("flip_winding"), FlipWinding);
-            UseRectangleOptimization = EditorGUILayout.Toggle(TriangleL10n.T("rect_opt"), UseRectangleOptimization);
-            using (new EditorGUI.DisabledScope(!UseRectangleOptimization))
-                RectangleTolerance = EditorGUILayout.FloatField(TriangleL10n.T("rect_tolerance"), RectangleTolerance);
-
-            EditorGUILayout.Space(6);
+            // Create row: name + 新建 button (replaces the curve's 2D/3D buttons). / 新建行：名称 + 新建按钮（替代曲线的 2D/3D 按钮）。
             EditorGUILayout.BeginHorizontal();
-            GUI.backgroundColor = UiActionGreen;
-            if (GUILayout.Button(TriangleL10n.T("build_update"), GUILayout.Height(26)))
-                BuildSingleTriangle();
-            GUI.backgroundColor = Color.white;
-
-            GUI.backgroundColor = UiDeleteRed;
-            if (GUILayout.Button(TriangleL10n.T("clear"), GUILayout.Height(26)))
-                ClearSingleModel();
+            _newFaceName = EditorGUILayout.TextField(_newFaceName, GUILayout.MinWidth(60));
+            GUI.backgroundColor = UiCreateGreen;
+            if (GUILayout.Button(TriangleL10n.T("new_triangle"), GUILayout.Width(80)))
+                CreateNewFace();
             GUI.backgroundColor = Color.white;
             EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.LabelField("――――――――――――――――――――――――", EditorStyles.centeredGreyMiniLabel);
+
+            if (FaceList == null) return;
+
+            _scrollTriList = EditorGUILayout.BeginScrollView(_scrollTriList, GUILayout.Height(200));
+            for (int i = 0; i < FaceList.Count; i++)
+            {
+                var face = FaceList[i];
+                bool isSel = _manager.SelectedFaceIndex == i;
+                if (isSel) GUI.backgroundColor = UiSelectedBg;
+
+                EditorGUILayout.BeginHorizontal();
+
+                // Select button: ○ selected, × not / 选择按钮：○ 已选，× 未选
+                string selLabel = isSel ? "○" : "×";
+                GUI.backgroundColor = isSel ? UiCreateGreen : new Color(0.6f, 0.6f, 0.6f);
+                if (GUILayout.Button(selLabel, GUILayout.Width(24)))
+                {
+                    _manager.Select(i);
+                    _manager.SelectedVertexIndex = -1;
+                    SceneView.RepaintAll();
+                }
+
+                // Visible D / 可见 D
+                GUI.backgroundColor = face.IsVisible ? Color.white : UiPlaceholderGray;
+                if (GUILayout.Button("D", GUILayout.Width(22)))
+                { Undo.RecordObject(_manager, "隐藏"); face.IsVisible = !face.IsVisible; _manager.MarkDirty(); SceneView.RepaintAll(); }
+                GUI.backgroundColor = isSel ? UiSelectedBg : Color.white;
+
+                // Enabled E / 启用 E
+                GUI.backgroundColor = face.IsEnabled ? Color.white : UiPlaceholderGray;
+                if (GUILayout.Button("E", GUILayout.Width(22)))
+                { Undo.RecordObject(_manager, "启用"); face.IsEnabled = !face.IsEnabled; _manager.MarkDirty(); SceneView.RepaintAll(); }
+                GUI.backgroundColor = isSel ? UiSelectedBg : Color.white;
+
+                // Lock L / 锁定 L
+                GUI.backgroundColor = face.IsLocked ? UiLockedOrange : UiDisabledGray;
+                if (GUILayout.Button("L", GUILayout.Width(22)))
+                { Undo.RecordObject(_manager, "锁定"); face.IsLocked = !face.IsLocked; _manager.MarkDirty(); SceneView.RepaintAll(); }
+                GUI.backgroundColor = isSel ? UiSelectedBg : Color.white;
+
+                // Name / 名称
+                string nn = EditorGUILayout.TextField(face.Name, GUILayout.MinWidth(44));
+                if (nn != face.Name) { Undo.RecordObject(_manager, "重命名"); face.Name = nn; _manager.MarkDirty(); }
+
+                // Face color / 面颜色
+                EditorGUI.BeginChangeCheck();
+                Color nc = EditorGUILayout.ColorField(face.Color, GUILayout.Width(44));
+                if (EditorGUI.EndChangeCheck())
+                { Undo.RecordObject(_manager, "颜色"); face.Color = nc; _manager.MarkDirty(); SceneView.RepaintAll(); }
+
+                // Copy C / 复制 C
+                GUI.backgroundColor = UiCopyBlue;
+                if (GUILayout.Button("C", GUILayout.Width(22)))
+                { DuplicateFace(face); SceneView.RepaintAll(); }
+                GUI.backgroundColor = isSel ? UiSelectedBg : Color.white;
+
+                // Delete ✕ / 删除 ✕
+                GUI.backgroundColor = UiDeleteRed;
+                if (GUILayout.Button("✕", GUILayout.Width(22)))
+                { _manager.RemoveFace(i); SceneView.RepaintAll(); GUIUtility.ExitGUI(); }
+                GUI.backgroundColor = isSel ? UiSelectedBg : Color.white;
+
+                EditorGUILayout.EndHorizontal();
+                GUI.backgroundColor = Color.white;
+            }
+            EditorGUILayout.EndScrollView();
+
+            if (FaceList.Count > 0)
+            {
+                GUI.backgroundColor = UiDeleteAllRed;
+                if (GUILayout.Button(TriangleL10n.T("del_all_faces"), GUILayout.Height(20)))
+                {
+                    if (EditorUtility.DisplayDialog(TriangleL10n.T("confirm"), TriangleL10n.T("del_confirm", FaceList.Count), TriangleL10n.T("ok"), TriangleL10n.T("cancel")))
+                    { Undo.RecordObject(_manager, "删除全部"); FaceList.Clear(); _manager.ClearSelection(); _manager.MarkDirty(); SceneView.RepaintAll(); }
+                }
+                GUI.backgroundColor = Color.white;
+            }
         }
 
-        // ---------- OBJ model / OBJ 模型 ----------
-
-        private void DrawObjModel()
+        /// <summary>Creates a new face from the name buffer and selects it. / 按名称缓冲新建面并选中。</summary>
+        private void CreateNewFace()
         {
-            EditorGUILayout.BeginHorizontal();
-            _objPath = EditorGUILayout.TextField(TriangleL10n.T("obj_path"), _objPath);
-            GUI.backgroundColor = UiCopyBlue;
-            if (GUILayout.Button(TriangleL10n.T("browse"), GUILayout.Width(80f)))
-                BrowseObj();
-            GUI.backgroundColor = Color.white;
-            EditorGUILayout.EndHorizontal();
+            string baseName = string.IsNullOrWhiteSpace(_newFaceName) ? "NewTriangle" : _newFaceName;
+            _manager.AddFace(baseName);
+            _newFaceName = "NewTriangle";
+            SceneView.RepaintAll();
+        }
 
-            _objForceColor = EditorGUILayout.Toggle(TriangleL10n.T("force_fallback"), _objForceColor);
-            using (new EditorGUI.DisabledScope(!_objForceColor))
-                FallbackColor = EditorGUILayout.ColorField(TriangleL10n.T("fallback_color"), FallbackColor);
+        /// <summary>Deep-copies a face (JSON), deduplicates its name, then inserts it into the list.
+        /// 深拷贝面（JSON），去重命名后插入列表。</summary>
+        private void DuplicateFace(TriangleFace source)
+        {
+            if (source == null) return;
+            var clone = JsonUtility.FromJson<TriangleFace>(JsonUtility.ToJson(source));
+            clone.IsSelected = false;
+            _manager.AddFace(clone);
+            SceneView.RepaintAll();
+        }
 
-            EditorGUILayout.Space(4);
-            EditorGUILayout.BeginHorizontal();
+        // ---------- Selected face properties / 选中面属性 ----------
+
+        /// <summary>Selected face properties: three world-space vertices + color. Editable whenever a face is
+        /// selected and unlocked (independent of scene edit mode). 选中面属性：三个世界坐标点 + 颜色。
+        /// 只要选中了非锁定的面即可编辑（与场景编辑模式无关）。</summary>
+        private void DrawFaceProperties()
+        {
+            var face = _manager != null ? _manager.SelectedFace : null;
+            EditorGUI.BeginDisabledGroup(face == null || face.IsLocked);
+
+            if (face == null)
+            {
+                EditorGUILayout.LabelField(TriangleL10n.T("sel_face_hint"), EditorStyles.miniLabel);
+            }
+            else
+            {
+                float labelW = EditorGUIUtility.currentViewWidth * 0.3f;
+                EditorGUI.BeginChangeCheck();
+
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Label(TriangleL10n.T("vertex_p1"), GUILayout.Width(labelW));
+                face.P1 = EditorGUILayout.Vector3Field(GUIContent.none, face.P1);
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Label(TriangleL10n.T("vertex_p2"), GUILayout.Width(labelW));
+                face.P2 = EditorGUILayout.Vector3Field(GUIContent.none, face.P2);
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Label(TriangleL10n.T("vertex_p3"), GUILayout.Width(labelW));
+                face.P3 = EditorGUILayout.Vector3Field(GUIContent.none, face.P3);
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Label(TriangleL10n.T("face_color"), GUILayout.Width(labelW));
+                face.Color = EditorGUILayout.ColorField(GUIContent.none, face.Color);
+                EditorGUILayout.EndHorizontal();
+
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(_manager, "修改三角面");
+                    _manager.MarkDirty();
+                    SceneView.RepaintAll();
+                }
+            }
+
+            EditorGUI.EndDisabledGroup();
+        }
+
+        // ---------- Generate model / 生成模型 ----------
+
+        /// <summary>Generate button: builds the parallelogram model from all enabled + visible faces.
+        /// 生成按钮：从所有启用且可见的面构建平行四边形模型。</summary>
+        private void DrawGenerateButton()
+        {
+            bool any = _manager != null && _manager.Faces.Count > 0;
+            EditorGUI.BeginDisabledGroup(!any);
             GUI.backgroundColor = UiActionGreen;
-            if (GUILayout.Button(
-                    _objSession != null && _objSession.IsRunning ? TriangleL10n.T("building") : TriangleL10n.T("load_build"),
-                    GUILayout.Height(26)))
-            {
-                if (_objSession == null || !_objSession.IsRunning)
-                    LoadObj();
-            }
+            if (GUILayout.Button(TriangleL10n.T("generate"), GUILayout.Height(34)))
+                GenerateFaces();
             GUI.backgroundColor = Color.white;
-
-            if (GUILayout.Button(TriangleL10n.T("cancel"), GUILayout.Height(26)))
-                CancelObj();
-
-            GUI.backgroundColor = UiDeleteRed;
-            if (GUILayout.Button(TriangleL10n.T("clear"), GUILayout.Height(26)))
-                ClearObjModel();
-            GUI.backgroundColor = Color.white;
-            EditorGUILayout.EndHorizontal();
-
-            if (_objSession != null)
-            {
-                var progressRect = GUILayoutUtility.GetRect(200f, 20f);
-                EditorGUI.ProgressBar(progressRect, _objSession.Progress,
-                    _objSession.TrianglesBuilt + " / " + _objSession.TotalTriangles + " triangles");
-            }
-
-            if (!string.IsNullOrEmpty(_objError))
-                EditorGUILayout.HelpBox(_objError, MessageType.Error);
+            EditorGUI.EndDisabledGroup();
         }
 
         // ---------- Statistics / 统计 ----------

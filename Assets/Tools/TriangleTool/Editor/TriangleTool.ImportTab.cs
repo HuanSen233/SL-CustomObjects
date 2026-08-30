@@ -1,0 +1,86 @@
+using UnityEditor;
+using UnityEngine;
+
+namespace TriangleTool.EditorTools
+{
+    /// <summary>
+    /// Triangle Tool — Model Import tab (batched OBJ build). The existing OBJ workflow is relocated here
+    /// as-is (path + browse + force color + fallback color + load & build + progress + cancel). The old
+    /// "Clear" button is removed per the UI-restructure request; a new OBJ load clears the previous model
+    /// automatically. UI 结构参考 CurvesTool 的行布局（标签左 1/3、控件右 2/3）。
+    /// 三角面工具 — 模型导入 Tab（分帧 OBJ 构建）。原有 OBJ 流程原样迁移至此（路径 + 浏览 + 强制回退色 +
+    /// 回退色 + 加载并构建 + 进度 + 取消）。按重排要求移除"清除"按钮；新 OBJ 加载会自动清除旧模型。
+    /// </summary>
+    public partial class TriangleTool
+    {
+        // ============================================================
+        //  Model Import Tab / 模型导入 Tab
+        // ============================================================
+        private void TabModelImport()
+        {
+            DrawObjModel();
+        }
+
+        private void DrawObjModel()
+        {
+            float labelW = EditorGUIUtility.currentViewWidth * 0.3f;
+
+            // OBJ path / OBJ 路径
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Label(TriangleL10n.T("obj_path"), GUILayout.Width(labelW));
+            _objPath = EditorGUILayout.TextField(_objPath);
+            EditorGUILayout.EndHorizontal();
+
+            // Browse / 浏览
+            GUI.backgroundColor = UiCopyBlue;
+            if (GUILayout.Button(TriangleL10n.T("browse"), GUILayout.Height(24)))
+                BrowseObj();
+            GUI.backgroundColor = Color.white;
+
+            EditorGUILayout.Space(4);
+
+            // Force fallback color / 强制回退色
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Label(TriangleL10n.T("force_fallback"), GUILayout.Width(labelW));
+            _objForceColor = EditorGUILayout.Toggle(_objForceColor);
+            EditorGUILayout.EndHorizontal();
+
+            using (new EditorGUI.DisabledScope(!_objForceColor))
+            {
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Label(TriangleL10n.T("fallback_color"), GUILayout.Width(labelW));
+                FallbackColor = EditorGUILayout.ColorField(GUIContent.none, FallbackColor);
+                EditorGUILayout.EndHorizontal();
+            }
+
+            EditorGUILayout.Space(4);
+
+            // Load & build / Cancel / 加载并构建 / 取消
+            EditorGUILayout.BeginHorizontal();
+            GUI.backgroundColor = UiActionGreen;
+            if (GUILayout.Button(
+                    _objSession != null && _objSession.IsRunning ? TriangleL10n.T("building") : TriangleL10n.T("load_build"),
+                    GUILayout.Height(28), GUILayout.ExpandWidth(true)))
+            {
+                if (_objSession == null || !_objSession.IsRunning)
+                    LoadObj();
+            }
+            GUI.backgroundColor = Color.white;
+
+            if (GUILayout.Button(TriangleL10n.T("cancel"), GUILayout.Height(28), GUILayout.Width(80)))
+                CancelObj();
+            EditorGUILayout.EndHorizontal();
+
+            // Progress / 进度
+            if (_objSession != null)
+            {
+                var progressRect = GUILayoutUtility.GetRect(200f, 20f);
+                EditorGUI.ProgressBar(progressRect, _objSession.Progress,
+                    _objSession.TrianglesBuilt + " / " + _objSession.TotalTriangles + " triangles");
+            }
+
+            if (!string.IsNullOrEmpty(_objError))
+                EditorGUILayout.HelpBox(_objError, MessageType.Error);
+        }
+    }
+}

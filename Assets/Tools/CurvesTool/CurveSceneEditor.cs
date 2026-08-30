@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ToolLib;
 using UnityEditor;
 using UnityEngine;
 
@@ -128,15 +129,9 @@ public static partial class CurveSceneEditor
         var curve = m.SelectedCurve;
         if (curve == null || vertex == null) return false;
         Vector3 world = GetMoveHandleWorldPos(curve, vertex, curve.Is3D);
-        if (Camera.current == null) return false; // can't project without a camera / 无相机时无法投影
-        Vector2 center = HandleUtility.WorldToGUIPoint(world);
-        float hsize = HandleUtility.GetHandleSize(world);
-        // Project a world-space offset to measure the handle's screen size, then use a generous multiple
-        // to cover the axis arrows. / 投影一个世界偏移量估算手柄的屏幕尺寸，再取较大倍数覆盖轴箭头。
-        Vector2 edge = HandleUtility.WorldToGUIPoint(world + Camera.current.transform.right * hsize);
-        float pxPerSize = Mathf.Max(2f, Vector2.Distance(center, edge));
-        float radius = pxPerSize * 3.5f + 25f;
-        return Vector2.Distance(mousePos, center) <= radius;
+        // Delegates to the shared SceneDragUtility screen-radius check (camera guard + axis-arrow coverage).
+        // 转发到共享 SceneDragUtility 的屏幕半径判定（含无相机的保护与轴箭头覆盖）。
+        return SceneDragUtility.IsOnHandleGizmo(world, mousePos);
     }
 
     /// <summary>Draws a Unity PositionHandle for the selected vertex/handle and writes the dragged result back to the data.
@@ -166,11 +161,17 @@ public static partial class CurveSceneEditor
         // 手柄朝向尊重 Unity 坐标系：世界坐标（Global）→ identity（不随曲线平面转、LookRotation 不退化）；
         // 局部坐标（Local）→ 稳定的贴平面朝向（切线作 forward、平面法线作 up），且避免 LookRotation 退化。
         Quaternion rot = GetMoveHandleRotation(curve, is3d);
-        EditorGUI.BeginChangeCheck();
-        Vector3 newPos = Handles.PositionHandle(worldPos, rot);
-        if (EditorGUI.EndChangeCheck())
+
+        // Snap step resolution + shared move-handle driver (draws the handle, applies snap, records Undo once).
+        // 吸附步长解析 + 共享移动手柄驱动（绘制手柄、应用吸附、一次性记录 Undo）。
+        var w = CurveTool.Instance;
+        Event e = Event.current;
+        bool ctrlSnap = e != null && (e.control || e.command);
+        Vector3 gs = GetSnapStep(w, ctrlSnap);
+
+        if (SceneMoveTool.DrawPositionHandle(m, worldPos, rot, gs,
+                EditorSnapSettings.gridSnapEnabled || ctrlSnap, ref _undoRecorded, "移动曲线元素", out Vector3 newPos))
         {
-            if (!_undoRecorded) { Undo.RecordObject(m, "移动曲线元素"); _undoRecorded = true; }
             WriteMoveHandleTarget(curve, vertex, target, newPos, is3d, vertexWorld);
             m.MarkDirty();
             curve.RecalculateHandles();
@@ -200,19 +201,8 @@ public static partial class CurveSceneEditor
     /// 将移动手柄拖拽结果写回顶点/控制柄数据（保留分轴锁）</summary>
     private static void WriteMoveHandleTarget(BezierCurve curve, CurveVertex vertex, MoveHandleTarget target, Vector3 newPos, bool is3d, Vector3 vertexWorld)
     {
-        // Grid/increment snap: snap the world-space handle result to the grid BEFORE writing, so a dragged
-        // target "归位"s onto the nearest grid point first and then moves in grid steps — mirroring the tool's
-        // built-in drag (SnapDragStartIfNeeded + SnapVector3 in HandleMouseDrag). Same condition & step as built-in.
-        // 网格/增量吸附：写回前先把世界空间的手柄结果吸附到网格，使拖拽目标“先归位到网格再移动”，
-        // 与工具自带拖拽（SnapDragStartIfNeeded + SnapVector3）保持一致；条件与步长也复用同一套逻辑。
-        var w = CurveTool.Instance;
-        Event e = Event.current;
-        bool ctrlSnap = e != null && (e.control || e.command);
-        if (w != null && (EditorSnapSettings.gridSnapEnabled || ctrlSnap))
-        {
-            Vector3 gs = GetSnapStep(w, ctrlSnap);
-            newPos = SnapVector3(newPos, gs);
-        }
+        // Grid/increment snap was already applied by the shared SceneMoveTool.DrawPositionHandle before calling here.
+        // 网格/增量吸附已由共享 SceneMoveTool.DrawPositionHandle 在调用前完成。
 
         switch (target)
         {

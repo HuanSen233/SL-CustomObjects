@@ -17,7 +17,28 @@ namespace TriangleTool.EditorTools
         {
             { "window_title", new Dictionary<Lang, string> { { Lang.EN, "Triangle Tool" }, { Lang.ZH, "三角面工具" } } },
             { "edit_tab", new Dictionary<Lang, string> { { Lang.EN, "Edit" }, { Lang.ZH, "编辑" } } },
+            { "import_tab", new Dictionary<Lang, string> { { Lang.EN, "Model Import" }, { Lang.ZH, "模型导入" } } },
             { "settings_tab", new Dictionary<Lang, string> { { Lang.EN, "Settings" }, { Lang.ZH, "设置" } } },
+
+            // Mode bar / 模式栏
+            { "edit_mode", new Dictionary<Lang, string> { { Lang.EN, "Edit Mode" }, { Lang.ZH, "编辑模式" } } },
+            { "preview", new Dictionary<Lang, string> { { Lang.EN, "Preview" }, { Lang.ZH, "预览" } } },
+
+            // Triangle-face list / 三角面列表
+            { "tri_list", new Dictionary<Lang, string> { { Lang.EN, "Triangle Face List" }, { Lang.ZH, "三角面列表" } } },
+            { "new_triangle", new Dictionary<Lang, string> { { Lang.EN, "New" }, { Lang.ZH, "新建" } } },
+            { "del_all_faces", new Dictionary<Lang, string> { { Lang.EN, "Delete All Faces" }, { Lang.ZH, "删除全部三角面" } } },
+            { "tri_row_legend", new Dictionary<Lang, string> { { Lang.EN, "○ select · D visible · E enabled · L lock · C copy · ✕ delete" }, { Lang.ZH, "○ 选中 · D 可见 · E 启用 · L 锁定 · C 复制 · ✕ 删除" } } },
+            { "confirm", new Dictionary<Lang, string> { { Lang.EN, "Confirm" }, { Lang.ZH, "确认" } } },
+            { "del_confirm", new Dictionary<Lang, string> { { Lang.EN, "Delete {0} triangle face(s)?" }, { Lang.ZH, "删除 {0} 个三角面？" } } },
+
+            // Triangle-face properties / 三角面属性
+            { "tri_props", new Dictionary<Lang, string> { { Lang.EN, "Triangle Face Properties" }, { Lang.ZH, "三角面属性" } } },
+            { "sel_face_hint", new Dictionary<Lang, string> { { Lang.EN, "Select a face to edit its properties." }, { Lang.ZH, "请先选中一个面以编辑其属性。" } } },
+
+            // Generate / 生成
+            { "generate_section", new Dictionary<Lang, string> { { Lang.EN, "Generate Model" }, { Lang.ZH, "生成模型" } } },
+            { "generate", new Dictionary<Lang, string> { { Lang.EN, "Generate" }, { Lang.ZH, "生成" } } },
 
             // Mode bar / 模式栏
             { "mode", new Dictionary<Lang, string> { { Lang.EN, "Build Mode" }, { Lang.ZH, "构建模式" } } },
@@ -65,6 +86,11 @@ namespace TriangleTool.EditorTools
             { "color", new Dictionary<Lang, string> { { Lang.EN, "Color" }, { Lang.ZH, "颜色" } } },
             { "accuracy", new Dictionary<Lang, string> { { Lang.EN, "Accuracy (V2/V3, world units)" }, { Lang.ZH, "精度（V2/V3，世界单位）" } } },
             { "opt_passes", new Dictionary<Lang, string> { { Lang.EN, "Optimization Passes (V3)" }, { Lang.ZH, "优化轮数（V3）" } } },
+            { "input", new Dictionary<Lang, string> { { Lang.EN, "Input" }, { Lang.ZH, "输入" } } },
+            { "use_move_tool", new Dictionary<Lang, string> { { Lang.EN, "Use Move Tool (W)" }, { Lang.ZH, "使用移动工具（W）" } } },
+            { "use_editor_snap", new Dictionary<Lang, string> { { Lang.EN, "Use Editor Snap Settings" }, { Lang.ZH, "使用编辑器吸附设定" } } },
+            { "snap_grid", new Dictionary<Lang, string> { { Lang.EN, "Snap Grid Size" }, { Lang.ZH, "吸附网格尺寸" } } },
+            { "snap_inc", new Dictionary<Lang, string> { { Lang.EN, "Snap Increment (Ctrl)" }, { Lang.ZH, "吸附增量（Ctrl）" } } },
             { "face_color", new Dictionary<Lang, string> { { Lang.EN, "Face Color (default)" }, { Lang.ZH, "面颜色（默认）" } } },
             { "fallback_color", new Dictionary<Lang, string> { { Lang.EN, "Fallback Color (OBJ)" }, { Lang.ZH, "回退色（OBJ）" } } },
             { "collidable", new Dictionary<Lang, string> { { Lang.EN, "Collidable (visible quads)" }, { Lang.ZH, "可碰撞（可见 Quad）" } } },
@@ -83,5 +109,8 @@ namespace TriangleTool.EditorTools
                 return text;
             return key;
         }
+
+        /// <summary>Fetch a translation and format it with args. / 获取翻译并用参数格式化。</summary>
+        public static string T(string key, params object[] args) => string.Format(T(key), args);
     }
 }
