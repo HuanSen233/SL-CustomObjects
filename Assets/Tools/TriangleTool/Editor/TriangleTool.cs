@@ -214,14 +214,15 @@ namespace TriangleTool.EditorTools
             var builder = CreateConfiguredBuilder();
             builder.EnsureRoot(rootName);
 
-            // Group the currently-selected faces; if none selected, fall back to all enabled + visible.
-            // 先规划当前选中的三角面为一组生成；无选中时回退到所有启用且可见的面。
+            // Group the currently-selected faces; if none selected, fall back to all enabled faces.
+            // A disabled face is never generated (mirrors the curve tool's Enable button).
+            // 先规划当前选中的三角面为一组生成；无选中时回退到所有启用的面。
+            // 未启用的面永不生成（同曲线工具的"启用"按钮）。
             bool anySelected = _manager.HasSelection();
             foreach (var face in _manager.Faces)
             {
-                if (face == null) continue;
-                bool include = anySelected ? face.IsSelected : (face.IsEnabled && face.IsVisible);
-                if (!include) continue;
+                if (face == null || !face.IsEnabled) continue;
+                if (anySelected && !face.IsSelected) continue;
                 builder.BuildOneTriangle(new TriangleData(face.P1, face.P2, face.P3, face.Color));
             }
             builder.Finish();

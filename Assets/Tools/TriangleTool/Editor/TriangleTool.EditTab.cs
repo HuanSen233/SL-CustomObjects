@@ -45,9 +45,6 @@ namespace TriangleTool.EditorTools
             _foldoutStats = EditorGUILayout.Foldout(_foldoutStats, TriangleL10n.T("statistics"), true);
             if (_foldoutStats) DrawStatsSection();
 
-            EditorGUILayout.Space(6);
-            EditorGUILayout.LabelField(TriangleL10n.T("tri_row_legend"), EditorStyles.miniLabel);
-
             EditorGUILayout.EndScrollView();
         }
 
@@ -190,6 +187,10 @@ namespace TriangleTool.EditorTools
                 }
                 GUI.backgroundColor = Color.white;
             }
+
+            // Row-button legend (mirrors the curve list, placed at the bottom of the list section).
+            // 行按钮图例（同曲线列表，置于列表区底部）。
+            EditorGUILayout.LabelField(TriangleL10n.T("tri_row_legend"), EditorStyles.miniLabel);
         }
 
         /// <summary>Creates a new face from the name buffer and selects it. / 按名称缓冲新建面并选中。</summary>
