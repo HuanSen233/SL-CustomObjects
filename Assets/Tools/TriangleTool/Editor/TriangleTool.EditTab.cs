@@ -115,13 +115,19 @@ namespace TriangleTool.EditorTools
 
                 EditorGUILayout.BeginHorizontal();
 
-                // Select button: ○ selected, × not / 选择按钮：○ 已选，× 未选
+                // Select button: ○ selected, × not; Shift/Ctrl makes it additive multi-select; the
+                // last-clicked (anchor) button is bright green. / 选择按钮：○ 已选，× 未选；
+                // Shift/Ctrl 为多选；最后点击的按钮（锚点）亮绿。
                 string selLabel = isSel ? "○" : "×";
-                GUI.backgroundColor = isSel ? UiCreateGreen : new Color(0.6f, 0.6f, 0.6f);
+                bool isAnchor = _manager.AnchorFaceIndex == i;
+                GUI.backgroundColor = isAnchor ? UiCreateGreen
+                    : isSel ? new Color(0.45f, 0.72f, 0.45f)
+                    : new Color(0.6f, 0.6f, 0.6f);
                 if (GUILayout.Button(selLabel, GUILayout.Width(24)))
                 {
-                    _manager.Select(i);
-                    _manager.SelectedVertexIndex = -1;
+                    Event btn = Event.current;
+                    bool additive = btn != null && (btn.shift || btn.control || btn.command);
+                    _manager.Select(i, additive);
                     SceneView.RepaintAll();
                 }
 

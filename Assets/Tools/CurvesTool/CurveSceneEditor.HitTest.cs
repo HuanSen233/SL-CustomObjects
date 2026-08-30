@@ -68,6 +68,13 @@ public static partial class CurveSceneEditor
 
         // 7-pass scan by priority: selected handles → unselected handles → selected vertices → unselected vertices → selected arrows → unselected arrows → locked
         // 7 轮扫描按优先级：已选曲柄 → 未选曲柄 → 已选顶点 → 未选顶点 → 已选箭头 → 未选箭头 → 锁定
+        // Scan the selected curve first in every pass, so overlapping vertices of the selected curve win
+        // over other curves'. / 每轮先扫当前选中曲线，使其重叠顶点优先于其他曲线。
+        int[] order = new int[m.Curves.Count];
+        int oi = 0;
+        if (m.SelectedCurveIndex >= 0 && m.SelectedCurveIndex < m.Curves.Count) order[oi++] = m.SelectedCurveIndex;
+        for (int k = 0; k < m.Curves.Count; k++) if (k != m.SelectedCurveIndex) order[oi++] = k;
+
         for (int pass = 0; pass < 7; pass++)
         {
             int subType;
@@ -83,8 +90,9 @@ public static partial class CurveSceneEditor
                 default: subType = 0; selOnly = false; unselOnly = false; lockedOnly = true;  break;
             }
 
-            for (int ci = 0; ci < m.Curves.Count; ci++)
+            for (int o = 0; o < order.Length; o++)
             {
+                int ci = order[o];
                 var c = m.Curves[ci];
                 if (!c.IsVisible) continue;
                 if (lockedOnly && !c.IsLocked) continue;

@@ -30,6 +30,9 @@ namespace TriangleTool
         /// <summary>Selected vertex index within the selected face (0..2; -1 = none) (session state).
         /// 选中面内选中的顶点索引（0..2；-1=无）（会话状态）</summary>
         [System.NonSerialized] public int SelectedVertexIndex = -1;
+        /// <summary>Last-clicked (anchor) face index — its list select button is drawn bright green.
+        /// 最后点击（锚点）的面索引 — 其列表选择按钮高亮为亮绿色。</summary>
+        [System.NonSerialized] public int AnchorFaceIndex = -1;
 
         /// <summary>Currently selected face (null when none selected). / 当前选中的面（无选中时返回 null）</summary>
         public TriangleFace SelectedFace =>
@@ -135,14 +138,31 @@ namespace TriangleTool
             MarkDirty();
         }
 
-        /// <summary>Selects a face (clears previous face/vertex selection). / 选中一个面（清除之前的面/顶点选中）</summary>
-        public void Select(int index)
+        /// <summary>Selects a face. additive=true toggles the face into the multi-select set (Shift/Ctrl in the
+        /// list); the selected face becomes the anchor (last-clicked, bright green in the list).
+        /// 选中一个面。additive=true 时把该面切换进多选集合（列表内 Shift/Ctrl）；该面成为锚点（最后点击，列表亮绿）。</summary>
+        public void Select(int index, bool additive = false)
         {
             if (index < 0 || index >= Faces.Count) return;
-            ClearSelection();
-            SelectedFaceIndex = index;
             var f = Faces[index];
-            f.IsSelected = true;
+            if (additive)
+                f.IsSelected = !f.IsSelected; // toggle membership / 切换多选成员关系
+            else
+            {
+                foreach (var x in Faces) x.IsSelected = false;
+                f.IsSelected = true;
+            }
+            SelectedFaceIndex = index;
+            AnchorFaceIndex = index;
+            SelectedVertexIndex = -1;
+        }
+
+        /// <summary>Whether any face is currently multi-selected. / 是否已有任一三角面被多选。</summary>
+        public bool HasSelection()
+        {
+            foreach (var f in Faces)
+                if (f != null && f.IsSelected) return true;
+            return false;
         }
 
         /// <summary>Clears all selection state. / 清除所有选中</summary>
@@ -152,6 +172,7 @@ namespace TriangleTool
                 f.IsSelected = false;
             SelectedFaceIndex = -1;
             SelectedVertexIndex = -1;
+            AnchorFaceIndex = -1;
         }
 
         /// <summary>Marks data as changed: component dirty + scene dirty (required for Ctrl+S persistence).

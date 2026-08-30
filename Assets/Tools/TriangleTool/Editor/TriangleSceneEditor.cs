@@ -213,31 +213,68 @@ namespace TriangleTool.EditorTools
         // ===== Hit testing / 命中检测 =====
 
         /// <summary>Hits a visible face's vertex by ray-point distance (returns false on a miss).
-        /// 命中可见面的某顶点（射线-点距离），未命中返回 false。</summary>
+        /// Prioritizes the currently-selected face's vertices over other faces', so when two faces overlap
+        /// at a shared point, the vertex of the face selected in the list wins.
+        /// 命中可见面的某顶点（射线-点距离），未命中返回 false。
+        /// 优先当前选中面的顶点，再扫其余面——两面的顶点重叠时，列表选中面的顶点优先。</summary>
         private static bool TryHitPoint(TriangleFaceManager m, Event e, out int faceIndex, out int vertex)
         {
             faceIndex = -1;
             vertex = -1;
             Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
-
             float bestDist = float.MaxValue;
-            for (int fi = 0; fi < m.Faces.Count; fi++)
+
+            // Priority: the selected face's vertices first.
+            // 优先级：先扫当前选中面的顶点。
+            int selIdx = m.SelectedFaceIndex;
+            if (selIdx >= 0 && selIdx < m.Faces.Count && m.Faces[selIdx] != null && m.Faces[selIdx].IsVisible)
             {
-                var f = m.Faces[fi];
-                if (f == null || !f.IsVisible) continue;
-                for (int v = 0; v < 3; v++)
+                if (ScanFaceVertices(m.Faces[selIdx], ray, ref bestDist, out int v))
                 {
-                    Vector3 p = FacePoint(f, v);
-                    float d = SceneDragUtility.RayPointDist(ray, p);
-                    if (d < PointHitRadius * HandleUtility.GetHandleSize(p) && d < bestDist)
-                    {
-                        bestDist = d;
-                        faceIndex = fi;
-                        vertex = v;
-                    }
+                    faceIndex = selIdx;
+                    vertex = v;
+                    return true;
                 }
             }
-            return faceIndex >= 0;
+
+            // Then the rest of the faces (in list order).
+            // 再扫其余面（按列表顺序）。
+            for (int fi = 0; fi < m.Faces.Count; fi++)
+            {
+                if (fi == selIdx) continue;
+                var f = m.Faces[fi];
+                if (f == null || !f.IsVisible) continue;
+                if (ScanFaceVertices(f, ray, ref bestDist, out int v))
+                {
+                    faceIndex = fi;
+                    vertex = v;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>Scans the three vertices of one face, returning the closest within the hit radius.
+        /// Updates bestDist/reference distance. / 扫描单面三个顶点，返回命中半径内最近的一个；更新参考距离。</summary>
+        private static bool ScanFaceVertices(TriangleFace face, Ray ray, ref float bestDist, out int vertex)
+        {
+            vertex = -1;
+            int bestV = -1;
+            float bestVd = float.MaxValue;
+            for (int v = 0; v < 3; v++)
+            {
+                Vector3 p = FacePoint(face, v);
+                float d = SceneDragUtility.RayPointDist(ray, p);
+                if (d < PointHitRadius * HandleUtility.GetHandleSize(p) && d < bestVd)
+                {
+                    bestVd = d;
+                    bestV = v;
+                }
+            }
+            if (bestV < 0) return false;
+            vertex = bestV;
+            bestDist = bestVd;
+            return true;
         }
     }
 }

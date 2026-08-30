@@ -197,9 +197,11 @@ namespace TriangleTool.EditorTools
             SceneView.RepaintAll();
         }
 
-        /// <summary>Builds a brand-new generated model from all enabled + visible faces on each click, leaving any
-        /// previously generated object untouched. The top-level parent name is de-duplicated across the scene.
-        /// 每次点击都从所有启用且可见的三角面新建一个生成模型，不碰之前生成的物体；顶层父名在场景内去重。</summary>
+        /// <summary>Builds a brand-new generated model on each click, leaving any previously generated object
+        /// untouched. The currently-selected faces are grouped together first (falling back to all enabled +
+        /// visible faces when nothing is selected). The top-level parent name is de-duplicated in the scene.
+        /// 每次点击都新建一个生成模型，不碰之前生成的物体。先把当前选中的面规划为一组，再生成；
+        /// 无选中时回退到所有启用+可见的面。顶层父名在场景内去重。</summary>
         private void GenerateFaces()
         {
             if (_manager == null || _manager.Faces.Count == 0) return;
@@ -207,9 +209,15 @@ namespace TriangleTool.EditorTools
             string rootName = NameUtil.DeduplicateObjectName("TriangleModel (Tool)");
             var builder = CreateConfiguredBuilder();
             builder.EnsureRoot(rootName);
+
+            // Group the currently-selected faces; if none selected, fall back to all enabled + visible.
+            // 先规划当前选中的三角面为一组生成；无选中时回退到所有启用且可见的面。
+            bool anySelected = _manager.HasSelection();
             foreach (var face in _manager.Faces)
             {
-                if (face == null || !face.IsEnabled || !face.IsVisible) continue;
+                if (face == null) continue;
+                bool include = anySelected ? face.IsSelected : (face.IsEnabled && face.IsVisible);
+                if (!include) continue;
                 builder.BuildOneTriangle(new TriangleData(face.P1, face.P2, face.P3, face.Color));
             }
             builder.Finish();

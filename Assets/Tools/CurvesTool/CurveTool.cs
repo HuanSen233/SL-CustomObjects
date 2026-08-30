@@ -250,10 +250,7 @@ public partial class CurveTool : EditorWindow
     private void CreateNewCurve(CurvePlane plane)
     {
         string baseName = string.IsNullOrWhiteSpace(_newCurveName) ? "NewCurve" : _newCurveName;
-        string finalName = baseName;
-        int dedup = 1;
-        while (_manager.Curves.Exists(c => c.Name == finalName))
-            finalName = $"{baseName}{dedup++}";
+        string finalName = NameUtil.Deduplicate(baseName, n => _manager.Curves.Exists(c => c.Name == n));
         var newCurve = _manager.AddNewCurve(finalName, _defaultSegmentCount, plane);
         newCurve.RecalculateHandles();
         _newCurveName = "NewCurve";
@@ -264,10 +261,7 @@ public partial class CurveTool : EditorWindow
     private void CreateNew3DCurve()
     {
         string baseName = string.IsNullOrWhiteSpace(_newCurveName) ? "New3DCurve" : _newCurveName;
-        string finalName = baseName;
-        int dedup = 1;
-        while (_manager.Curves.Exists(c => c.Name == finalName))
-            finalName = $"{baseName}{dedup++}";
+        string finalName = NameUtil.Deduplicate(baseName, n => _manager.Curves.Exists(c => c.Name == n));
         var curve = BezierCurve.CreateDefault3D(finalName);
         Undo.RecordObject(_manager, "创建 3D 曲线");
         _manager.Curves.Add(curve);
@@ -287,10 +281,7 @@ public partial class CurveTool : EditorWindow
         var clone = JsonUtility.FromJson<BezierCurve>(JsonUtility.ToJson(source));
         // Deduplicate name: baseName + Copy + number / 去重命名：原名+Copy+数字
         string baseName = clone.Name + "Copy";
-        clone.Name = baseName;
-        int dedup = 1;
-        while (_manager.Curves.Exists(c => c.Name == clone.Name))
-            clone.Name = $"{baseName}{dedup++}";
+        clone.Name = NameUtil.Deduplicate(baseName, n => _manager.Curves.Exists(c => c.Name == n));
         // Reset non-serialized fields / 重置非序列化字段
         clone.IsSelected = false;
         clone.SelectedSegmentIndex = -1;
