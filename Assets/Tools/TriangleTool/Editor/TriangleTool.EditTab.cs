@@ -110,7 +110,10 @@ namespace TriangleTool.EditorTools
             for (int i = 0; i < FaceList.Count; i++)
             {
                 var face = FaceList[i];
-                bool isSel = _manager.SelectedFaceIndex == i;
+                // Use the face's multi-select flag (not SelectedFaceIndex, which only tracks the anchor) so
+                // every selected row highlights, not just the last-clicked one. / 用面的多选标记（而非仅指向
+                // 锚点的 SelectedFaceIndex），使每个已选行都高亮，而非只有最后点击那行。
+                bool isSel = face.IsSelected;
                 if (isSel) GUI.backgroundColor = UiSelectedBg;
 
                 EditorGUILayout.BeginHorizontal();
