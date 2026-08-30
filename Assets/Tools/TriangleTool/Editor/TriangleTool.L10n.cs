@@ -35,6 +35,8 @@ namespace TriangleTool.EditorTools
             // Triangle-face properties / 三角面属性
             { "tri_props", new Dictionary<Lang, string> { { Lang.EN, "Triangle Face Properties" }, { Lang.ZH, "三角面属性" } } },
             { "sel_face_hint", new Dictionary<Lang, string> { { Lang.EN, "Select a face to edit its properties." }, { Lang.ZH, "请先选中一个面以编辑其属性。" } } },
+            { "winding", new Dictionary<Lang, string> { { Lang.EN, "Winding" }, { Lang.ZH, "绕序" } } },
+            { "flip_face", new Dictionary<Lang, string> { { Lang.EN, "Flip Face" }, { Lang.ZH, "反转面" } } },
 
             // Generate / 生成
             { "generate_section", new Dictionary<Lang, string> { { Lang.EN, "Generate Model" }, { Lang.ZH, "生成模型" } } },

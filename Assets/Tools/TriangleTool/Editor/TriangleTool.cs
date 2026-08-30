@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ToolLib;
 using UnityEditor;
 using UnityEngine;
 
@@ -130,6 +131,7 @@ namespace TriangleTool.EditorTools
             SaveSettings();
             if (Instance == this) Instance = null;
             _editMode = false;
+            EditModeGate.Request("triangle", false, null);
             TriangleSceneRenderer.Unregister();
             TriangleSceneEditor.Unregister();
             SceneView.RepaintAll();
@@ -191,25 +193,20 @@ namespace TriangleTool.EditorTools
         {
             _manager = TriangleFaceManager.Instance;
             if (_manager == null) return;
-            var face = _manager.AddFace("ExampleTriangle");
-            if (face == null) return;
-            face.P1 = new Vector3(0f, 0f, 0f);
-            face.P2 = new Vector3(2f, 0f, 0f);
-            face.P3 = new Vector3(0.3f, 1.6f, 0f);
-            _manager.MarkDirty();
+            _manager.AddFace("ExampleTriangle");
             SceneView.RepaintAll();
         }
 
-        /// <summary>Builds (or rebuilds) the generated model from all enabled + visible faces.
-        /// 从所有启用且可见的三角面构建（或重建）生成模型。</summary>
+        /// <summary>Builds a brand-new generated model from all enabled + visible faces on each click, leaving any
+        /// previously generated object untouched. The top-level parent name is de-duplicated across the scene.
+        /// 每次点击都从所有启用且可见的三角面新建一个生成模型，不碰之前生成的物体；顶层父名在场景内去重。</summary>
         private void GenerateFaces()
         {
             if (_manager == null || _manager.Faces.Count == 0) return;
 
-            ClearGeneratedModel();
-
+            string rootName = NameUtil.DeduplicateObjectName("TriangleModel (Tool)");
             var builder = CreateConfiguredBuilder();
-            builder.EnsureRoot("TriangleModel (Tool)");
+            builder.EnsureRoot(rootName);
             foreach (var face in _manager.Faces)
             {
                 if (face == null || !face.IsEnabled || !face.IsVisible) continue;
@@ -221,19 +218,6 @@ namespace TriangleTool.EditorTools
             if (builder.Root != null)
                 Selection.activeGameObject = builder.Root;
 
-            SceneView.RepaintAll();
-        }
-
-        /// <summary>Clears the previously generated face model (rebuild on next generate).
-        /// 清除之前生成的三角面模型（下次生成时重建）。</summary>
-        private void ClearGeneratedModel()
-        {
-            if (_lastBuilder != null && _lastBuilder.Root != null &&
-                _lastBuilder.Root.name == "TriangleModel (Tool)")
-            {
-                _lastBuilder.DestroyImmediate();
-                _lastBuilder = null;
-            }
             SceneView.RepaintAll();
         }
 

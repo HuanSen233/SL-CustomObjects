@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using ToolLib;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -99,23 +100,25 @@ namespace TriangleTool
 
         // ===== Data operations / 数据操作 =====
 
-        /// <summary>Adds a new default triangle face and selects it. / 添加一个默认三角面并选中。</summary>
+        /// <summary>Adds a new default triangle face (name de-duplicated) and selects it.
+        /// 添加一个默认三角面（名称去重）并选中。</summary>
         public TriangleFace AddFace(string name = "NewTriangle")
         {
             Undo.RecordObject(this, "添加三角面");
-            var face = TriangleFace.CreateDefault(name);
+            string finalName = NameUtil.Deduplicate(name, n => Faces.Exists(f => f.Name == n));
+            var face = TriangleFace.CreateDefault(finalName);
             Faces.Add(face);
             Select(Faces.Count - 1);
             MarkDirty();
             return face;
         }
 
-        /// <summary>Adds a given triangle face (with deduplicated name) and selects it. / 添加指定三角面（去重命名）并选中。</summary>
+        /// <summary>Adds a given triangle face (with deduplicated name) and selects it. / 添加指定三角面（名称去重）并选中。</summary>
         public TriangleFace AddFace(TriangleFace face)
         {
             if (face == null) return null;
             Undo.RecordObject(this, "添加三角面");
-            face.Name = DeduplicateName(face.Name);
+            face.Name = NameUtil.Deduplicate(face.Name, n => Faces.Exists(f => f.Name == n));
             Faces.Add(face);
             Select(Faces.Count - 1);
             MarkDirty();
@@ -159,16 +162,6 @@ namespace TriangleTool
             var scene = gameObject != null ? gameObject.scene : default;
             if (scene.IsValid() && scene.isLoaded)
                 EditorSceneManager.MarkSceneDirty(scene);
-        }
-
-        /// <summary>Produces a unique name by appending a counter when a duplicate exists. / 重名时追加计数生成唯一名。</summary>
-        private string DeduplicateName(string baseName)
-        {
-            string finalName = baseName;
-            int dedup = 1;
-            while (Faces.Exists(f => f.Name == finalName))
-                finalName = $"{baseName}{dedup++}";
-            return finalName;
         }
     }
 }

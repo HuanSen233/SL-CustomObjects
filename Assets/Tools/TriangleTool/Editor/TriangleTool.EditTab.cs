@@ -1,3 +1,4 @@
+using ToolLib;
 using UnityEditor;
 using UnityEngine;
 
@@ -63,7 +64,14 @@ namespace TriangleTool.EditorTools
             GUI.backgroundColor = _editMode ? UiActionGreen : Color.white;
             bool newEdit = GUILayout.Toggle(_editMode, $" {TriangleL10n.T("edit_mode")}", "Button", GUILayout.Height(28), GUILayout.Width(editW));
             GUI.backgroundColor = Color.white;
-            if (newEdit != _editMode) { _editMode = newEdit; SceneView.RepaintAll(); }
+            if (newEdit != _editMode)
+            {
+                // Mutual exclusion: turning edit mode on takes ownership and turns the other tool's edit mode off.
+                // 互斥：开启编辑模式即取得占用，并关闭另一工具（曲线）的编辑模式。
+                EditModeGate.Request("triangle", newEdit, () => { _editMode = false; SceneView.RepaintAll(); });
+                _editMode = newEdit;
+                SceneView.RepaintAll();
+            }
 
             // Preview (1/5, a view mode alongside Edit Mode; toggles highlight on/off) / 预览（1/5，与编辑模式并列；切换高亮开关）
             GUI.backgroundColor = _previewOn ? UiPreviewBlue : Color.white;
@@ -239,6 +247,21 @@ namespace TriangleTool.EditorTools
                     _manager.MarkDirty();
                     SceneView.RepaintAll();
                 }
+
+                // Flip face: reverse the winding (swap P2/P3), which flips the face normal.
+                // 反转面：反转绕序（交换 P2/P3），从而翻转面法线。
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Label(TriangleL10n.T("winding"), GUILayout.Width(labelW));
+                GUI.backgroundColor = UiCopyBlue;
+                if (GUILayout.Button(TriangleL10n.T("flip_face"), GUILayout.ExpandWidth(true)))
+                {
+                    Undo.RecordObject(_manager, "反转面");
+                    Vector3 tmp = face.P2; face.P2 = face.P3; face.P3 = tmp;
+                    _manager.MarkDirty();
+                    SceneView.RepaintAll();
+                }
+                GUI.backgroundColor = Color.white;
+                EditorGUILayout.EndHorizontal();
             }
 
             EditorGUI.EndDisabledGroup();

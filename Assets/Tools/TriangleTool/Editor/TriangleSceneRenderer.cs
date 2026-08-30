@@ -60,6 +60,21 @@ namespace TriangleTool.EditorTools
             Handles.DrawLine(face.P1, face.P2, 2.2f);
             Handles.DrawLine(face.P2, face.P3, 2.2f);
             Handles.DrawLine(face.P3, face.P1, 2.2f);
+
+            // Face-normal line: centroid + normal (blue, camera-adaptive length), like the curve tool's
+            // Plane/Quad face-normal handling. Direction follows the current winding (Flip Face reverses it).
+            // 面朝向线：质心 + 法线（蓝，按视角缩放），同曲线工具 Plane/Quad 的面朝向处理；
+            // 方向随当前绕序（"反转面"会翻转它）。
+            Vector3 centroid = (face.P1 + face.P2 + face.P3) / 3f;
+            Vector3 n = Vector3.Cross(face.P2 - face.P1, face.P3 - face.P1);
+            if (n.sqrMagnitude > 1e-8f)
+            {
+                n.Normalize();
+                float len = HandleUtility.GetHandleSize(centroid) * 1.2f;
+                Handles.color = Color.blue;
+                Handles.DrawLine(centroid, centroid + n * len, 2f);
+                Handles.color = c;
+            }
         }
 
         /// <summary>Draws the three draggable point spheres of the selected face; the actively selected

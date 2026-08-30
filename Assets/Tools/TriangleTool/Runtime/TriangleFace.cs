@@ -49,11 +49,11 @@ namespace TriangleTool
             Color = color;
         }
 
-        /// <summary>Creates a non-degenerate default triangle face (same corners as the legacy default).
-        /// 创建一个非退化的默认三角面（与旧版默认同角点）。</summary>
+        /// <summary>Creates a non-degenerate default triangle face (in the XZ plane, normal = ±Y).
+        /// 创建一个非退化的默认三角面（位于 XZ 平面，法线 = ±Y）。</summary>
         public static TriangleFace CreateDefault(string name = "NewTriangle")
         {
-            return new TriangleFace(new Vector3(0f, 0f, 0f), new Vector3(2f, 0f, 0f), new Vector3(0.3f, 1.6f, 0f))
+            return new TriangleFace(new Vector3(0f, 0f, 0f), new Vector3(2f, 0f, 0f), new Vector3(0f, 0f, 2f))
             {
                 Name = name,
             };

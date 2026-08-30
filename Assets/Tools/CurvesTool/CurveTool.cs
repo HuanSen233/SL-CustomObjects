@@ -1,3 +1,4 @@
+using ToolLib;
 using UnityEditor;
 using UnityEngine;
 
@@ -160,6 +161,7 @@ public partial class CurveTool : EditorWindow
         SaveSettings();
         if (Instance == this) Instance = null;
         _editMode = false;
+        EditModeGate.Request("curve", false, null);
         CurveSceneRenderer.Unregister();
         CurveSceneEditor.Unregister();
         SceneView.RepaintAll();
@@ -209,7 +211,14 @@ public partial class CurveTool : EditorWindow
         GUI.backgroundColor = _editMode ? UiActionGreen : Color.white;
         bool newEdit = GUILayout.Toggle(_editMode, $" {L10n.T("curve_edit")}", "Button", GUILayout.Height(28), GUILayout.Width(editW));
         GUI.backgroundColor = Color.white;
-        if (newEdit != _editMode) { _editMode = newEdit; SceneView.RepaintAll(); }
+        if (newEdit != _editMode)
+        {
+            // Mutual exclusion: turning edit mode on takes ownership and turns the other tool's edit mode off.
+            // 互斥：开启编辑模式即取得占用，并关闭另一工具（三角面）的编辑模式。
+            EditModeGate.Request("curve", newEdit, () => { _editMode = false; SceneView.RepaintAll(); });
+            _editMode = newEdit;
+            SceneView.RepaintAll();
+        }
 
         // Preview (1/5, a view mode alongside Curve Edit; cycles Off → Wireframe → Triangles → Off)
         // 预览（1/5，视图模式与曲线编辑并列；点击循环 关 → 线框 → 三角面 → 关）
