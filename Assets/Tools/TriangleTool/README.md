@@ -37,7 +37,7 @@
 `edgeA=VLeft+VUp, edgeB=VLeft-VUp`，`scale=(|edgeB|, |edgeA|, 1)`，`rotation=LookRotation(cross(edgeB,edgeA), edgeA.normalized)`。
 每遇到一个矩形省 1 个 primitive。
 
-## 三种模式（窗口顶部下拉栏）
+## 三种模式（设置 Tab → 构建模式）
 
 | 模式 | 原理 | Primitive 成本 |
 |------|------|----------------|
@@ -77,13 +77,18 @@ Assets/Tools/TriangleTool/
     StretchMath.cs                       # V2/V3：stretch 变换数学 + 误差度量 + 合并
     ProjectBlockFactory.cs               # 项目块工厂（Empty.prefab / Primitives/Quad.prefab）
     TriangleData.cs                      # 三角形数据（顶点 + 颜色）
+    TriangleFace.cs                      # 三角面数据（名称 + 3 点 + 颜色 + 可见/启用/锁定 + 选中态）
+    TriangleFaceManager.cs               # 场景数据载体（隐藏对象 __TriangleToolData__，增删选/改脏/持久化）
     ObjTriangleParser.cs                 # OBJ 解析器（v/顶点色/mtllib/usemtl/Kd/f）
     ObjModelLoader.cs                    # OBJ 路径解析 + 加载入口
   Editor/
     TriangleTool.cs                # 窗口骨架（字段/生命周期/持久化/业务逻辑），UI 结构参考 CurvesTool
-    TriangleTool.EditTab.cs        # 编辑 Tab（模式栏 + 单三角形/OBJ/统计折叠区）
-    TriangleTool.SettingsTab.cs    # 设置 Tab（精度/轮数/颜色/语言/重置）
+    TriangleTool.EditTab.cs        # 编辑 Tab（模式栏 + 三角面列表 + 三角面属性 + 生成 + 统计）
+    TriangleTool.ImportTab.cs      # 模型导入 Tab（OBJ：路径/浏览/强制回退色/加载并构建/进度/取消）
+    TriangleTool.SettingsTab.cs    # 设置 Tab（构建模式/输入/颜色/语言/重置）
     TriangleTool.L10n.cs           # 双语本地化（English/简体中文）
+    TriangleSceneRenderer.cs       # SceneView 渲染（编辑：3 点+线框；预览：高亮轮廓）
+    TriangleSceneEditor.cs         # SceneView 编辑（命中/拖拽 3 点，复用 0ToolLib 共享拖拽）
     TriangleToolSettings.json      # 持久化设置（窗口关闭自动保存）
     ObjBuildSession.cs             # 分帧构建会话（大模型不卡编辑器）
 ```
@@ -94,11 +99,15 @@ Assets/Tools/TriangleTool/
 
 - 菜单 **Tools → Triangle Tool → Open Window** 打开窗口；
 - **编辑 Tab**：
-  - **模式栏**：V1 Exact / V2 Approx / V3 Hier 三键切换（当前模式绿色高亮）；
-  - **单三角形** 折叠区：三个顶点坐标（或选中 3 个 GameObject 后 **从选中物体读取**）、缩放、绕序翻转、矩形优化；**构建 / 更新**（绿）、**清除**（红）；
-  - **OBJ 模型** 折叠区：路径 + 浏览、强制回退色、**加载并构建**（分帧，带进度条）/ **取消** / **清除**；
+  - **模式栏**：`编辑模式`（4/5，默认开启，场景点拖拽与线框生效）+ `预览`（1/5，高亮三角面轮廓）；
+  - **三角面列表** 折叠区：名称 + `新建` 按钮创建面；行内 `○选中 · D 可见 · E 启用 · L 锁定 · C 复制 · ✕ 删除`，底部 `删除全部三角面`；
+  - **三角面属性** 折叠区：选中面的 3 个世界坐标点 + 颜色（选中非锁定面即可编辑）；
+  - **生成模型** 折叠区：`生成` 按钮，从所有启用 + 可见的面用 `TriangleModelBuilder` 构建平行四边形模型；
   - **统计** 折叠区：平行四边形 / 可见 Quad / 矩形 / Stretch / 重挂数 / 节省数 / 总块数。
-- **设置 Tab**：精度（V2/V3）、优化轮数（V3）、面颜色、回退色、可碰撞、语言（English/简体中文）、重置为默认值（窗口关闭自动保存为 `TriangleToolSettings.json`）。
+- **模型导入 Tab**：OBJ 路径 + 浏览、强制回退色、回退色、**加载并构建**（分帧，带进度条）/ **取消**；
+- **设置 Tab**：构建模式（精度/优化轮数）、输入（移动工具 W / 编辑器吸附 / 吸附网格 / 增量）、颜色（面颜色/回退色/可碰撞）、语言（English/简体中文）、重置为默认值（窗口关闭自动保存为 `TriangleToolSettings.json`）。
+
+在编辑模式下，选中一个面后场景中会显示 3 个可拖拽点与三角形线框：拖点即可编辑（支持网格/增量吸附与 Undo）；启用**移动工具（W）**时用 PositionHandle 拖拽。预览开启后按面颜色高亮轮廓（非编辑展示）。
 
 ### 示例与测试模型
 
@@ -144,7 +153,8 @@ if (ObjModelLoader.TryLoadTriangles("Suzanne", Color.white, false,
 |------|--------|
 | 根容器 / 不可见父对象（剪切变换载体） | `Assets/Resources/Blocks/Empty.prefab` |
 | 可见三角面（Quad 块） | `Assets/Resources/Blocks/Primitives/Quad.prefab` |
-| 顶点标记球 | `Assets/Resources/Blocks/Primitives/Sphere.prefab` |
+
+> 编辑模式下的 3 个可拖拽点是 **SceneView 手柄**（`Handles.SphereHandleCap`）绘制的，不生成 GameObject；由 `0ToolLib/SceneDragUtility` 提供命中与吸附。
 
 生成的可见 Quad 块 `Collidable = false`（纯渲染，不阻挡）。
 
