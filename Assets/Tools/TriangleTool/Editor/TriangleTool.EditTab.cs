@@ -275,10 +275,14 @@ namespace TriangleTool.EditorTools
 
         // ---------- Generate model / 生成模型 ----------
 
-        /// <summary>Generate button: builds the parallelogram model from all enabled + visible faces.
-        /// 生成按钮：从所有启用且可见的面构建平行四边形模型。</summary>
+        /// <summary>Build-mode selector (V1/V2/V3) above the Generate button, plus the Generate button itself.
+        /// The mode is persisted with the settings; selection drives the parallelization cost trade-off.
+        /// 生成按钮上方的构建模式选择（V1/V2/V3）+ 生成按钮本身。模式随设置持久化，决定物体数量/精度权衡。</summary>
         private void DrawGenerateButton()
         {
+            DrawBuildModeBar();
+            EditorGUILayout.Space(4);
+
             bool any = _manager != null && _manager.Faces.Count > 0;
             EditorGUI.BeginDisabledGroup(!any);
             GUI.backgroundColor = UiActionGreen;
@@ -286,6 +290,34 @@ namespace TriangleTool.EditorTools
                 GenerateFaces();
             GUI.backgroundColor = Color.white;
             EditorGUI.EndDisabledGroup();
+        }
+
+        /// <summary>Three-button build-mode bar (V1 Exact / V2 Approx / V3 Hier), active mode green-highlighted.
+        /// 三键构建模式栏（V1 精确 / V2 近似 / V3 层级），当前模式绿色高亮。</summary>
+        private void DrawBuildModeBar()
+        {
+            EditorGUILayout.LabelField(TriangleL10n.T("mode"), EditorStyles.boldLabel);
+            EditorGUILayout.BeginHorizontal();
+            float w = (EditorGUIUtility.currentViewWidth - 8f) / 3f;
+            float h = 26f;
+
+            GUI.backgroundColor = Mode == TriangleBuildMode.Exact ? UiCreateGreen : Color.white;
+            bool v1 = GUILayout.Toggle(Mode == TriangleBuildMode.Exact, TriangleL10n.T("mode_v1"), "Button", GUILayout.Height(h), GUILayout.Width(w));
+            GUI.backgroundColor = Color.white;
+            if (v1 && Mode != TriangleBuildMode.Exact) { Mode = TriangleBuildMode.Exact; SaveSettings(); SceneView.RepaintAll(); }
+
+            GUI.backgroundColor = Mode == TriangleBuildMode.StretchClustered ? UiCreateGreen : Color.white;
+            bool v2 = GUILayout.Toggle(Mode == TriangleBuildMode.StretchClustered, TriangleL10n.T("mode_v2"), "Button", GUILayout.Height(h), GUILayout.Width(w));
+            GUI.backgroundColor = Color.white;
+            if (v2 && Mode != TriangleBuildMode.StretchClustered) { Mode = TriangleBuildMode.StretchClustered; SaveSettings(); SceneView.RepaintAll(); }
+
+            GUI.backgroundColor = Mode == TriangleBuildMode.Hierarchical ? UiCreateGreen : Color.white;
+            bool v3 = GUILayout.Toggle(Mode == TriangleBuildMode.Hierarchical, TriangleL10n.T("mode_v3"), "Button", GUILayout.Height(h), GUILayout.Width(w));
+            GUI.backgroundColor = Color.white;
+            if (v3 && Mode != TriangleBuildMode.Hierarchical) { Mode = TriangleBuildMode.Hierarchical; SaveSettings(); SceneView.RepaintAll(); }
+
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.LabelField(TriangleL10n.T("mode_legend"), EditorStyles.miniLabel);
         }
 
         // ---------- Statistics / 统计 ----------
