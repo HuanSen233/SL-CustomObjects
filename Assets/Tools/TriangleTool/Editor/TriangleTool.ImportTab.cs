@@ -21,6 +21,11 @@ namespace TriangleTool.EditorTools
         // ============================================================
         private void TabModelImport()
         {
+            // Independent build-mode selector for the OBJ build (does not affect the Edit tab's Mode).
+            // 模型导入构建独立的构建模式选择（不影响编辑页的 Mode）。
+            DrawBuildModeBar(ObjMode, m => { ObjMode = m; SaveSettings(); }, TriangleL10n.T("import_mode"));
+            EditorGUILayout.Space(4);
+
             DrawObjModel();
 
             EditorGUILayout.Space(6);

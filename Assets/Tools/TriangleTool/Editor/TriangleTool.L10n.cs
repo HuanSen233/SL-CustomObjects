@@ -48,6 +48,7 @@ namespace TriangleTool.EditorTools
             { "mode_v2", new Dictionary<Lang, string> { { Lang.EN, "V2 Approx" }, { Lang.ZH, "V2 近似" } } },
             { "mode_v3", new Dictionary<Lang, string> { { Lang.EN, "V3 Hier" }, { Lang.ZH, "V3 层级" } } },
             { "mode_legend", new Dictionary<Lang, string> { { Lang.EN, "V1 pixel-exact · V2 shared stretches · V3 hierarchical parenting (fewest primitives)" }, { Lang.ZH, "V1 像素级精确 · V2 共享拉伸 · V3 层级父子（Primitive 最少）" } } },
+            { "import_mode", new Dictionary<Lang, string> { { Lang.EN, "Import Build Mode" }, { Lang.ZH, "导入构建模式" } } },
 
             // Single triangle / 单三角形
             { "single_triangle", new Dictionary<Lang, string> { { Lang.EN, "Single Triangle" }, { Lang.ZH, "单三角形" } } },
@@ -88,6 +89,9 @@ namespace TriangleTool.EditorTools
             { "color", new Dictionary<Lang, string> { { Lang.EN, "Color" }, { Lang.ZH, "颜色" } } },
             { "accuracy", new Dictionary<Lang, string> { { Lang.EN, "Accuracy (V2/V3, world units)" }, { Lang.ZH, "精度（V2/V3，世界单位）" } } },
             { "opt_passes", new Dictionary<Lang, string> { { Lang.EN, "Optimization Passes (V3)" }, { Lang.ZH, "优化轮数（V3）" } } },
+            { "perf", new Dictionary<Lang, string> { { Lang.EN, "Performance" }, { Lang.ZH, "性能" } } },
+            { "edit_max_blocks_per_frame", new Dictionary<Lang, string> { { Lang.EN, "Edit Max Blocks/Frame" }, { Lang.ZH, "编辑每帧最大块数" } } },
+            { "import_max_blocks_per_frame", new Dictionary<Lang, string> { { Lang.EN, "Import Max Blocks/Frame" }, { Lang.ZH, "导入每帧最大块数" } } },
             { "input", new Dictionary<Lang, string> { { Lang.EN, "Input" }, { Lang.ZH, "输入" } } },
             { "use_move_tool", new Dictionary<Lang, string> { { Lang.EN, "Use Move Tool (W)" }, { Lang.ZH, "使用移动工具（W）" } } },
             { "use_editor_snap", new Dictionary<Lang, string> { { Lang.EN, "Use Editor Snap Settings" }, { Lang.ZH, "使用编辑器吸附设定" } } },

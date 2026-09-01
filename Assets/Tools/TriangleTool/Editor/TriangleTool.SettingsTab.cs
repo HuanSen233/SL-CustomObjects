@@ -34,6 +34,16 @@ namespace TriangleTool.EditorTools
 
             GUILayout.Space(12);
 
+            // ~ Performance / 性能
+            EditorGUILayout.LabelField(TriangleL10n.T("perf"), EditorStyles.boldLabel);
+            DrawSettingRow(TriangleL10n.T("edit_max_blocks_per_frame"), () =>
+            { EditMaxBlocksPerFrame = EditorGUILayout.IntField(EditMaxBlocksPerFrame, GUILayout.MinWidth(60)); });
+            DrawSettingRow(TriangleL10n.T("import_max_blocks_per_frame"), () =>
+            { ImportMaxBlocksPerFrame = EditorGUILayout.IntField(ImportMaxBlocksPerFrame, GUILayout.MinWidth(60)); });
+            if (GUI.changed) SaveSettings();
+
+            GUILayout.Space(12);
+
             // ~ Input / 输入
             EditorGUILayout.LabelField(TriangleL10n.T("input"), EditorStyles.boldLabel);
             DrawSettingRow(TriangleL10n.T("use_move_tool"), () => { UseMoveTool = EditorGUILayout.Toggle(UseMoveTool); });
@@ -73,6 +83,7 @@ namespace TriangleTool.EditorTools
             if (GUILayout.Button(TriangleL10n.T("reset_default"), GUILayout.Height(28)))
             {
                 Mode = TriangleBuildMode.Exact;
+                ObjMode = TriangleBuildMode.Exact;
                 Accuracy = DefaultAccuracy;
                 OptimizationPasses = DefaultOptimizationPasses;
                 RectangleTolerance = DefaultRectangleTolerance;
@@ -81,6 +92,8 @@ namespace TriangleTool.EditorTools
                 Collidable = false;
                 FaceColor = DefaultFaceColor;
                 FallbackColor = DefaultFallbackColor;
+                EditMaxBlocksPerFrame = DefaultEditMaxBlocksPerFrame;
+                ImportMaxBlocksPerFrame = DefaultImportMaxBlocksPerFrame;
                 UseMoveTool = true;
                 UseEditorSnapSettings = true;
                 SnapGridSize = DefaultSnapGridSize;

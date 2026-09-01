@@ -64,6 +64,10 @@ namespace TriangleTool
         public int StretchesSaved => ReparentedCount + (_stretchesCreated - _stretches.Count);
         public int TotalBlockCount =>
             (Root != null ? 1 : 0) + _stretches.Count + _parallelogramQuads.Count + _fallbacks.Count * 2;
+        /// <summary>Total spawned blocks so far (quads/empties/stretches, excluding the root). Used by the
+        /// framed build sessions to cap how many blocks are created per frame (keep the editor responsive).
+        /// 已生成的块总数（Quad/Empty/Stretch，不含根）。用于分帧构建会话限制每帧创建的块数，保持编辑器响应。</summary>
+        public int BlocksBuilt => _all.Count;
 
         struct QuadInfo
         {

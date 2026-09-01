@@ -6,17 +6,19 @@ using UnityEngine;
 namespace TriangleTool.EditorTools
 {
     /// <summary>
-    /// Batched editor build session for OBJ models: feeds triangles into the unified
-    /// TriangleModelBuilder across multiple EditorApplication.update ticks, then calls
-    /// Finish() (mode post-processing) when done. Keeps the editor responsive on large models.
-    /// 用于 OBJ 模型的分帧编辑器构建会话：跨多个 EditorApplication.update 帧把三角形喂给统一
-    /// TriangleModelBuilder，完成后调用 Finish()（模式后处理）。大模型不卡编辑器。
+    /// Batched editor build session for either the Edit tab's face-group generate or the Model Import tab's
+    /// OBJ build: feeds triangles into the unified TriangleModelBuilder across multiple EditorApplication.update
+    /// ticks, capping the number of spawned blocks per frame, then calls Finish() (mode post-processing) when done.
+    /// Keeps the editor responsive on large models / large selections.
+    /// 分帧编辑器构建会话（编辑页三角面组构建或模型导入 OBJ 构建共用）：跨多个 EditorApplication.update 帧
+    /// 把三角形喂给统一 TriangleModelBuilder，并限制每帧生成的块数，完成后调用 Finish()（模式后处理）。
+    /// 大模型/大选区不卡编辑器。
     /// </summary>
     public class ObjBuildSession
     {
         readonly TriangleModelBuilder _builder;
         readonly Queue<TriangleData> _queue = new Queue<TriangleData>();
-        readonly int _batchSize;
+        readonly int _maxBlocksPerFrame;
         readonly Action _onComplete;
 
         /// <summary>The underlying builder accumulating geometry / 底层构建器（累积几何）。</summary>
@@ -35,7 +37,7 @@ namespace TriangleTool.EditorTools
         public ObjBuildSession(string rootName, TriangleBuildMode mode,
             float accuracy, int optimizationPasses, bool collidable,
             bool useRectangleOptimization, float rectangleTolerance, bool flipWinding,
-            int batchSize = 120, Action onComplete = null)
+            int maxBlocksPerFrame = 120, Action onComplete = null)
         {
             _builder = new TriangleModelBuilder
             {
@@ -48,7 +50,7 @@ namespace TriangleTool.EditorTools
                 FlipWinding = flipWinding,
             };
             _builder.EnsureRoot(rootName);
-            _batchSize = Mathf.Max(1, batchSize);
+            _maxBlocksPerFrame = Mathf.Max(1, maxBlocksPerFrame);
             _onComplete = onComplete;
         }
 
@@ -84,14 +86,21 @@ namespace TriangleTool.EditorTools
 
         void Tick()
         {
-            int built = 0;
+            // Feed triangles until this frame's spawned-block budget is reached (measure the block delta
+            // each triangle). A single triangle may exceed the budget; we stop after it (can't split it).
+            // 本帧喂入三角形直到达到本轮生成的块数预算（每三角形测一次块数增量）。
+            // 单个三角形可能超出预算；构建完该三角形后即停止（三角形不可拆分）。
+            int blocks = 0;
 
-            while (_queue.Count > 0 && built < _batchSize)
+            while (_queue.Count > 0)
             {
+                int before = _builder.BlocksBuilt;
                 TriangleData tri = _queue.Dequeue();
                 _builder.BuildOneTriangle(in tri);
                 TrianglesBuilt++;
-                built++;
+                blocks += _builder.BlocksBuilt - before;
+                if (blocks >= _maxBlocksPerFrame)
+                    break;
             }
 
             if (_queue.Count == 0)
