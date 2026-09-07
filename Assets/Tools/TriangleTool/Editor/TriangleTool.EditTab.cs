@@ -14,6 +14,8 @@ namespace TriangleTool.EditorTools
         // ===== Edit-tab foldout + buffer state / 编辑页折叠与缓冲状态 =====
         private bool _foldoutTriList = true;
         private bool _foldoutTriProps = true;
+        private bool _foldoutTransform = true;
+        private bool _foldoutCursor = true;
         private bool _foldoutGen = true;
         private string _newFaceName = "NewTriangle";
         private Vector2 _scrollTriList;
@@ -36,6 +38,14 @@ namespace TriangleTool.EditorTools
             // ~ Selected face properties / 选中面属性
             _foldoutTriProps = EditorGUILayout.Foldout(_foldoutTriProps, TriangleL10n.T("tri_props"), true);
             if (_foldoutTriProps) DrawFaceProperties();
+
+            // ~ Transform (flip/mirror on the selected faces) / 变换（翻转/镜像，作用于选中面）
+            _foldoutTransform = EditorGUILayout.Foldout(_foldoutTransform, TriangleL10n.T("transform"), true);
+            if (_foldoutTransform) DrawTransformFoldoutT();
+
+            // ~ Cursor (global reference frame) / 游标（全局参考系）
+            _foldoutCursor = EditorGUILayout.Foldout(_foldoutCursor, TriangleL10n.T("cursor_section"), true);
+            if (_foldoutCursor) DrawCursorFoldoutT();
 
             // ~ Generate model / 生成模型
             _foldoutGen = EditorGUILayout.Foldout(_foldoutGen, TriangleL10n.T("generate_section"), true);
@@ -276,6 +286,102 @@ namespace TriangleTool.EditorTools
             }
 
             EditorGUI.EndDisabledGroup();
+        }
+
+        // ---------- Transform (flip/mirror) + Cursor / 变换（翻转/镜像）与游标 ----------
+
+        /// <summary>Transform foldout: flip/mirror the selected face(s) about the origin or cursor (shared UI).
+        /// 变换折叠区：翻转/镜像选中面（原点/游标为中心），使用共享 UI。</summary>
+        private void DrawTransformFoldoutT()
+        {
+            if (_manager == null) return;
+            bool canEdit = SelectedEditableFaces().Count > 0;
+            float labelW = EditorGUIUtility.currentViewWidth * 0.3f;
+            SharedToolFoldoutUI.DrawTransformFoldout(
+                _manager, k => TriangleL10n.T(k), canEdit, labelW, (true, true, true),
+                ApplyFlipToFaces, DuplicateThenMirrorFaces);
+        }
+
+        /// <summary>Cursor foldout: reference frame, per-axis position/locks, lock, reset (shared UI).
+        /// 游标折叠区：参考系、分轴位置/锁、锁定、重置（共享 UI）。</summary>
+        private void DrawCursorFoldoutT()
+        {
+            if (_manager == null) return;
+            float labelW = EditorGUIUtility.currentViewWidth * 0.3f;
+            SharedToolFoldoutUI.DrawCursorFoldout(
+                _manager, k => TriangleL10n.T(k),
+                () => Undo.RecordObject(_manager, "游标"), () => _manager.MarkDirty(),
+                () => SceneView.RepaintAll(), _editMode, labelW);
+        }
+
+        /// <summary>Selected, unlocked faces (falls back to the single selected face when none are multi-selected).
+        /// 选中的未锁定面（无多选时回退到当前选中的单个面）。</summary>
+        private System.Collections.Generic.List<TriangleFace> SelectedEditableFaces()
+        {
+            var list = new System.Collections.Generic.List<TriangleFace>();
+            if (_manager == null) return list;
+            bool anySel = _manager.HasSelection();
+            if (anySel)
+            {
+                foreach (var f in _manager.Faces)
+                    if (f != null && !f.IsLocked && f.IsSelected) list.Add(f);
+            }
+            else
+            {
+                var sf = _manager.SelectedFace;
+                if (sf != null && !sf.IsLocked) list.Add(sf);
+            }
+            return list;
+        }
+
+        /// <summary>Mirrors the three face points about a center along the given axes. / 以 center 为中心沿指定轴镜像面三点。</summary>
+        private void MirrorFacePoints(TriangleFace face, Vector3 center, bool mx, bool my, bool mz)
+        {
+            Vector3 p1 = face.P1; EditTransformOps.MirrorPoint(ref p1, center, mx, my, mz); face.P1 = p1;
+            Vector3 p2 = face.P2; EditTransformOps.MirrorPoint(ref p2, center, mx, my, mz); face.P2 = p2;
+            Vector3 p3 = face.P3; EditTransformOps.MirrorPoint(ref p3, center, mx, my, mz); face.P3 = p3;
+        }
+
+        /// <summary>Flip: mirror the selected face(s) in place. / 翻转：就地镜像选中面。</summary>
+        private void ApplyFlipToFaces(Vector3 center, bool mx, bool my, bool mz)
+        {
+            if (_manager == null) return;
+            var targets = SelectedEditableFaces();
+            if (targets.Count == 0) return;
+            Undo.RecordObject(_manager, "翻转顶点");
+            foreach (var f in targets) MirrorFacePoints(f, center, mx, my, mz);
+            _manager.MarkDirty();
+            SceneView.RepaintAll();
+        }
+
+        /// <summary>Mirror: duplicate the selected face(s), then mirror the duplicates (like the curve tool's Mirror).
+        /// 镜像：复制选中面，再镜像副本（同曲线工具的"镜像"）。</summary>
+        private void DuplicateThenMirrorFaces(Vector3 center, bool mx, bool my, bool mz)
+        {
+            if (_manager == null) return;
+            var targets = SelectedEditableFaces();
+            if (targets.Count == 0) return;
+            Undo.RecordObject(_manager, "镜像三角面");
+            int firstDup = -1;
+            foreach (var src in targets)
+            {
+                if (src == null) continue;
+                var clone = JsonUtility.FromJson<TriangleFace>(JsonUtility.ToJson(src));
+                clone.IsSelected = false;
+                clone.Name = NameUtil.Deduplicate(src.Name + "Mirror", n => _manager.Faces.Exists(f => f.Name == n));
+                MirrorFacePoints(clone, center, mx, my, mz);
+                _manager.Faces.Add(clone);
+                if (firstDup < 0) firstDup = _manager.Faces.Count - 1;
+            }
+            if (firstDup >= 0)
+            {
+                _manager.ClearSelection();
+                for (int i = firstDup; i < _manager.Faces.Count; i++) _manager.Faces[i].IsSelected = true;
+                _manager.SelectedFaceIndex = firstDup;
+                _manager.AnchorFaceIndex = firstDup;
+            }
+            _manager.MarkDirty();
+            SceneView.RepaintAll();
         }
 
         // ---------- Generate model / 生成模型 ----------

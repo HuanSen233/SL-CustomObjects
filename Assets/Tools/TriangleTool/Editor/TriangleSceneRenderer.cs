@@ -1,3 +1,4 @@
+using ToolLib;
 using UnityEditor;
 using UnityEngine;
 
@@ -44,6 +45,10 @@ namespace TriangleTool.EditorTools
                 if (w.IsEditMode && face.IsSelected && !face.IsLocked)
                     DrawFacePoints(face, m);
             }
+
+            // Shared tool cursor (edit mode) — same gizmo as the curve tool / 共享工具游标（编辑模式）— 同曲线工具的 Gizmo
+            if (w.IsEditMode)
+                ToolCursorRender.Draw(m, w.CursorDisplaySize);
         }
 
         /// <summary>Draws the three edges of a face, colored by preview/lock/selection state.

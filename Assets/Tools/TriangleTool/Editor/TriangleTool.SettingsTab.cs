@@ -53,6 +53,7 @@ namespace TriangleTool.EditorTools
                 DrawSettingRow(TriangleL10n.T("snap_grid"), () => { SnapGridSize = EditorGUILayout.Vector3Field(GUIContent.none, SnapGridSize); });
                 DrawSettingRow(TriangleL10n.T("snap_inc"), () => { SnapIncrementMove = EditorGUILayout.Vector3Field(GUIContent.none, SnapIncrementMove); });
             }
+            DrawSettingRow(TriangleL10n.T("cursor_display"), () => { CursorDisplaySize = EditorGUILayout.Slider(CursorDisplaySize, 0.05f, 0.5f); });
             if (GUI.changed) SaveSettings();
 
             GUILayout.Space(12);
@@ -98,6 +99,7 @@ namespace TriangleTool.EditorTools
                 UseEditorSnapSettings = true;
                 SnapGridSize = DefaultSnapGridSize;
                 SnapIncrementMove = DefaultSnapIncrementMove;
+                CursorDisplaySize = DefaultCursorDisplaySize;
                 TriangleL10n.SetLanguage(TriangleL10n.Lang.EN);
                 UpdateTitle();
                 SaveSettings();

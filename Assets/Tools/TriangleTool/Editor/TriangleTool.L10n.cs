@@ -38,6 +38,16 @@ namespace TriangleTool.EditorTools
             { "winding", new Dictionary<Lang, string> { { Lang.EN, "Winding" }, { Lang.ZH, "绕序" } } },
             { "flip_face", new Dictionary<Lang, string> { { Lang.EN, "Flip Face" }, { Lang.ZH, "反转面" } } },
 
+            // Transform (flip/mirror) & cursor / 变换（翻转/镜像）与游标
+            { "transform", new Dictionary<Lang, string> { { Lang.EN, "Transform" }, { Lang.ZH, "变换" } } },
+            { "flip", new Dictionary<Lang, string> { { Lang.EN, "Flip" }, { Lang.ZH, "翻转" } } },
+            { "mirror", new Dictionary<Lang, string> { { Lang.EN, "Mirror" }, { Lang.ZH, "镜像" } } },
+            { "cursor_section", new Dictionary<Lang, string> { { Lang.EN, "Cursor" }, { Lang.ZH, "游标" } } },
+            { "cursor_ref_frame", new Dictionary<Lang, string> { { Lang.EN, "Cursor Reference Frame" }, { Lang.ZH, "游标参考系" } } },
+            { "cursor_props", new Dictionary<Lang, string> { { Lang.EN, "Cursor Properties" }, { Lang.ZH, "游标属性" } } },
+            { "lock_cursor", new Dictionary<Lang, string> { { Lang.EN, "Lock Cursor" }, { Lang.ZH, "锁定游标" } } },
+            { "reset_cursor_pos", new Dictionary<Lang, string> { { Lang.EN, "Reset Cursor Position" }, { Lang.ZH, "重置游标位置" } } },
+
             // Generate / 生成
             { "generate_section", new Dictionary<Lang, string> { { Lang.EN, "Generate Model" }, { Lang.ZH, "生成模型" } } },
             { "generate", new Dictionary<Lang, string> { { Lang.EN, "Generate" }, { Lang.ZH, "生成" } } },
@@ -97,6 +107,7 @@ namespace TriangleTool.EditorTools
             { "use_editor_snap", new Dictionary<Lang, string> { { Lang.EN, "Use Editor Snap Settings" }, { Lang.ZH, "使用编辑器吸附设定" } } },
             { "snap_grid", new Dictionary<Lang, string> { { Lang.EN, "Snap Grid Size" }, { Lang.ZH, "吸附网格尺寸" } } },
             { "snap_inc", new Dictionary<Lang, string> { { Lang.EN, "Snap Increment (Ctrl)" }, { Lang.ZH, "吸附增量（Ctrl）" } } },
+            { "cursor_display", new Dictionary<Lang, string> { { Lang.EN, "Cursor Size" }, { Lang.ZH, "游标尺寸" } } },
             { "face_color", new Dictionary<Lang, string> { { Lang.EN, "Face Color (default)" }, { Lang.ZH, "面颜色（默认）" } } },
             { "fallback_color", new Dictionary<Lang, string> { { Lang.EN, "Fallback Color (OBJ)" }, { Lang.ZH, "回退色（OBJ）" } } },
             { "collidable", new Dictionary<Lang, string> { { Lang.EN, "Collidable (visible quads)" }, { Lang.ZH, "可碰撞（可见 Quad）" } } },

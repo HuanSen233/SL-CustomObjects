@@ -1,3 +1,4 @@
+using ToolLib;
 using UnityEditor;
 using UnityEngine;
 
@@ -105,11 +106,9 @@ public static partial class CurveSceneEditor
                     else if (!shift)
                     {
                         // Try to hit the cursor / 尝试命中游标
-                        if (!m.CursorLocked && HitTestCursor(m, e))
+                        if (ToolCursorInteraction.TryHitCursor(m, e, CurveTool.Instance?.CursorDisplaySize ?? 0.15f))
                         {
-                            _isDraggingCursor = true;
-                            _undoRecorded = false;
-                            _dragStartCursorPos = m.CursorPosition;
+                            ToolCursorInteraction.BeginDrag();
                             e.Use();
                         }
                         else
@@ -216,34 +215,13 @@ public static partial class CurveSceneEditor
 
     private static void HandleMouseDrag(Event e, CurveManager m, CurveTool w)
     {
-        // Cursor dragging / 游标拖拽
-        if (_isDraggingCursor)
+        // Cursor dragging (shared interaction) / 游标拖拽（共享交互）
+        if (ToolCursorInteraction.IsDragging)
         {
-            if (!_undoRecorded) { Undo.RecordObject(m, "移动游标"); _undoRecorded = true; }
-            Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
-            Plane p = new Plane(-Camera.current.transform.forward, m.CursorPosition);
-            if (p.Raycast(ray, out float dist))
-            {
-                Vector3 hit = ray.GetPoint(dist);
-
-                // Grid/increment snap (step: EditorSnapSettings.move in editor mode, tool-local values otherwise)
-                // 网格吸附/增量吸附（步长：编辑器模式取 EditorSnapSettings.move，工具模式取工具设置）
-                if (EditorSnapSettings.gridSnapEnabled || e.control || e.command)
-                {
-                    Vector3 gs = GetSnapStep(w, e.control || e.command);
-                    hit = SnapVector3(hit, gs);
-                }
-
-                // Per-axis locks: keep locked axes unchanged / 分轴锁：保持被锁轴的值不变
-                if (m.CursorLockX) hit.x = m.CursorPosition.x;
-                if (m.CursorLockY) hit.y = m.CursorPosition.y;
-                if (m.CursorLockZ) hit.z = m.CursorPosition.z;
-
-                m.CursorPosition = hit;
-            }
-            m.MarkDirty();
-            e.Use();
-            SceneView.RepaintAll();
+            bool snapActive = EditorSnapSettings.gridSnapEnabled || e.control || e.command;
+            Vector3 snapStep = GetSnapStep(w, e.control || e.command);
+            ToolCursorInteraction.Drag(m, e, snapActive, snapStep,
+                () => Undo.RecordObject(m, "移动游标"), () => m.MarkDirty());
             CurveTool.Instance?.Repaint();
             return;
         }
@@ -448,7 +426,7 @@ public static partial class CurveSceneEditor
     private static void HandleMouseUp(Event e)
     {
         if (_isDragging && e.button == 0) { _isDragging = false; _undoRecorded = false; e.Use(); }
-        if (_isDraggingCursor && e.button == 0) { _isDraggingCursor = false; _undoRecorded = false; e.Use(); }
+        ToolCursorInteraction.EndDrag(e);
     }
 
     private static void HandleKeyDown(Event e, CurveManager m)

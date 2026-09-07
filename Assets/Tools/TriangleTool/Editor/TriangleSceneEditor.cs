@@ -43,7 +43,7 @@ namespace TriangleTool.EditorTools
         private static void OnSceneGUI(SceneView sv)
         {
             var w = TriangleTool.Instance;
-            if (w == null || !w.IsEditMode) { _isDragging = false; _undoRecorded = false; return; }
+            if (w == null || !w.IsEditMode) { _isDragging = false; _undoRecorded = false; ToolCursorInteraction.Reset(); return; }
             var m = TriangleFaceManager.Instance;
             if (m == null) return;
 
@@ -103,6 +103,17 @@ namespace TriangleTool.EditorTools
 
             if (!TryHitPoint(m, e, out int hitFaceIndex, out int hitVertex))
             {
+                // Try the shared tool cursor before clearing the selection (empty-space behavior).
+                // 先尝试共享工具游标，再走空白点击清空选中逻辑。
+                if (ToolCursorInteraction.TryHitCursor(m, e, w.CursorDisplaySize))
+                {
+                    ToolCursorInteraction.BeginDrag();
+                    e.Use();
+                    SceneView.RepaintAll();
+                    w.Repaint();
+                    return;
+                }
+
                 // Empty-space click: clear the selection, unless it lands on the move-handle gizmo.
                 // 空白点击：清空选中；但落在移动手柄 Gizmo 上时不清空。
                 if (moveEdit && m.SelectedFace != null &&
@@ -152,6 +163,16 @@ namespace TriangleTool.EditorTools
 
         private static void HandleMouseDrag(Event e, TriangleFaceManager m, TriangleTool w, bool moveEdit)
         {
+            // Shared tool cursor drag / 共享工具游标拖拽
+            if (ToolCursorInteraction.IsDragging)
+            {
+                Vector3 snapStep = SnapStep(w, e != null && (e.control || e.command));
+                ToolCursorInteraction.Drag(m, e, EditorSnapSettings.gridSnapEnabled || (e.control || e.command), snapStep,
+                    () => Undo.RecordObject(m, "移动游标"), () => m.MarkDirty());
+                w.Repaint();
+                return;
+            }
+
             if (!_isDragging) return;
             // Move-tool editing: delegated to the PositionHandle; do not consume.
             // 移动工具编辑：交给 PositionHandle；不消费事件。
@@ -183,6 +204,7 @@ namespace TriangleTool.EditorTools
                 _undoRecorded = false;
                 e.Use();
             }
+            ToolCursorInteraction.EndDrag(e);
         }
 
         // ===== Move tool adaptation / 移动工具适配 =====

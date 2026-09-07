@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ToolLib;
 using UnityEditor;
 using UnityEngine;
 
@@ -19,7 +20,6 @@ public static class CurveSceneRenderer
     private static Color SelectedColor => CurveTool.Instance?.SelectedColor ?? Color.yellow;
     private static Color SelectedSegmentColor => CurveTool.Instance?.SelectedSegmentColor ?? new Color(0.3f, 0.5f, 1f, 0.8f);
     private static Color PreviewWireColor => CurveTool.Instance?.GenerationColor ?? CurveTool.DefaultGenerationColor;
-    private static float CursorSize => CurveTool.Instance?.CursorDisplaySize ?? 0.15f;
 
     /// <summary>Returns the handle line color by handle type (high-contrast color scale).
     /// 根据控制柄类型返回线颜色（高对比度色标）</summary>
@@ -564,28 +564,10 @@ public static class CurveSceneRenderer
     // ===== Cursor rendering / 游标渲染 =====
 
     /// <summary>Draws the cursor: blue/orange wireframe sphere + axis-colored arrows (camera-adaptive size).
-    /// 绘制游标：蓝色/橙色线框球体 + 轴色箭头（相机自适应大小）</summary>
+    /// 绘制游标：蓝色/橙色线框球体 + 轴色箭头（相机自适应大小）— 使用共享渲染器。</summary>
     private static void DrawCursor(CurveManager m)
     {
-        float size = CursorSize * HandleUtility.GetHandleSize(m.CursorPosition);
-        bool locked = m.CursorLocked;
-        Color cursorCol = locked ? new Color(1f, 0.6f, 0.2f, 0.7f) : new Color(0.2f, 0.5f, 1f, 0.7f);
-
-        Handles.color = cursorCol;
-        // Wireframe sphere (three rings) / 球体线框（三向圆环）
-        Handles.DrawWireDisc(m.CursorPosition, Vector3.right,   size);
-        Handles.DrawWireDisc(m.CursorPosition, Vector3.up,      size);
-        Handles.DrawWireDisc(m.CursorPosition, Vector3.forward, size);
-
-        // X axis arrow (red) / X 轴箭头（红）
-        Handles.color = Color.red;
-        Handles.DrawLine(m.CursorPosition, m.CursorPosition + Vector3.right * size * 2f);
-        // Y axis arrow (green) / Y 轴箭头（绿）
-        Handles.color = Color.green;
-        Handles.DrawLine(m.CursorPosition, m.CursorPosition + Vector3.up * size * 2f);
-        // Z axis arrow (blue) / Z 轴箭头（蓝）
-        Handles.color = Color.blue;
-        Handles.DrawLine(m.CursorPosition, m.CursorPosition + Vector3.forward * size * 2f);
+        ToolCursorRender.Draw(m, CurveTool.Instance?.CursorDisplaySize ?? 0.15f);
     }
 }
 

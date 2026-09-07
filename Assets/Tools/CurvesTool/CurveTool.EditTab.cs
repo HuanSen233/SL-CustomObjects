@@ -1,3 +1,4 @@
+using ToolLib;
 using UnityEditor;
 using UnityEngine;
 
@@ -46,53 +47,42 @@ public partial class CurveTool
         EditorGUILayout.EndScrollView();
     }
 
-    /// <summary>Transform foldout: flip/mirror about the origin or cursor, applied to the selected curve.
-    /// 变换折叠区：翻转/镜像（以原点或游标为中心，作用于选中曲线）</summary>
+    /// <summary>Transform foldout: flip/mirror about the origin or cursor, applied to the selected curve (shared UI).
+    /// 变换折叠区：翻转/镜像（以原点或游标为中心，作用于选中曲线），使用共享 UI。</summary>
     private void DrawTransformFoldout()
     {
         var sel = _manager.SelectedCurve;
         bool canEdit = sel != null && !sel.IsLocked;
-        Vector3 center = _manager.CursorReferenceMode ? _manager.CursorPosition : Vector3.zero;
 
-        // ---------- Flip / 翻转 ----------
-        EditorGUI.BeginDisabledGroup(!canEdit);
-        EditorGUILayout.BeginHorizontal();
-        GUILayout.Label(L10n.T("flip"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
-        bool flipX = DrawAxisButtons(sel, out bool flipY, out bool flipZ);
-        EditorGUILayout.EndHorizontal();
-        EditorGUI.EndDisabledGroup();
+        // Per-axis flippability by the curve's editing plane / 依曲线编辑平面计算各轴可翻转性
+        bool canX = sel == null || sel.Plane != CurvePlane.YZ || sel.Is3D;
+        bool canY = sel == null || sel.Plane != CurvePlane.XZ || sel.Is3D;
+        bool canZ = sel == null || sel.Plane != CurvePlane.XY || sel.Is3D;
 
-        if ((flipX || flipY || flipZ) && canEdit)
-        {
-            Undo.RecordObject(_manager, "翻转顶点");
-            ApplyAxisMirror(sel, flipX, flipY, flipZ, center);
-            _manager.MarkDirty();
-            SceneView.RepaintAll();
-        }
-
-        GUILayout.Space(4);
-
-        // ---------- Mirror (duplicate the selected curve, then flip it along the axis) / 镜像（复制选中曲线后沿轴翻转） ----------
-        EditorGUI.BeginDisabledGroup(!canEdit);
-        EditorGUILayout.BeginHorizontal();
-        GUILayout.Label(L10n.T("mirror"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
-        bool mirX = DrawAxisButtons(sel, out bool mirY, out bool mirZ);
-        EditorGUILayout.EndHorizontal();
-        EditorGUI.EndDisabledGroup();
-
-        if ((mirX || mirY || mirZ) && canEdit)
-        {
-            DuplicateCurve(sel);
-            var dup = _manager.SelectedCurve;
-            if (dup != null)
+        SharedToolFoldoutUI.DrawTransformFoldout(
+            _manager, k => L10n.T(k), canEdit, EditorGUIUtility.currentViewWidth * 0.3f,
+            (canX, canY, canZ),
+            (center, mx, my, mz) =>
             {
-                Undo.RecordObject(_manager, "镜像曲线");
-                ApplyAxisMirror(dup, mirX, mirY, mirZ, center);
+                if (sel == null) return;
+                Undo.RecordObject(_manager, "翻转顶点");
+                ApplyAxisMirror(sel, mx, my, mz, center);
                 _manager.MarkDirty();
                 SceneView.RepaintAll();
-            }
-        }
-        GUILayout.Space(4);
+            },
+            (center, mx, my, mz) =>
+            {
+                if (sel == null) return;
+                DuplicateCurve(sel);
+                var dup = _manager.SelectedCurve;
+                if (dup != null)
+                {
+                    Undo.RecordObject(_manager, "镜像曲线");
+                    ApplyAxisMirror(dup, mx, my, mz, center);
+                    _manager.MarkDirty();
+                    SceneView.RepaintAll();
+                }
+            });
     }
 
     /// <summary>Draws the X/Y/Z axis buttons (disables axes not flippable on the curve's editing plane); returns the X-axis click result.
@@ -161,70 +151,15 @@ public partial class CurveTool
         curve.RecalculateHandles();
     }
 
-    /// <summary>Cursor foldout: reference-frame toggle / position (per-axis locks) / lock / reset.
-    /// 游标折叠区：参考系开关/位置（分轴锁）/锁定/重置</summary>
+    /// <summary>Cursor foldout: reference-frame toggle / position (per-axis locks) / lock / reset (shared UI).
+    /// 游标折叠区：参考系开关/位置（分轴锁）/锁定/重置，使用共享 UI。</summary>
     private void DrawCursorFoldout()
     {
-        // ---------- Cursor reference frame / 游标参考系 ----------
-        EditorGUI.BeginDisabledGroup(!_editMode);
-        EditorGUILayout.BeginHorizontal();
-        GUILayout.Label(L10n.T("cursor_ref_frame"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
-        bool refMode = _manager.CursorReferenceMode;
-        EditorGUI.BeginChangeCheck();
-        refMode = EditorGUILayout.Toggle(refMode);
-        EditorGUILayout.EndHorizontal();
-        if (EditorGUI.EndChangeCheck())
-        {
-            Undo.RecordObject(_manager, "切换游标参考系");
-            _manager.CursorReferenceMode = refMode;
-            _manager.MarkDirty();
-        }
-
-        // ---------- Cursor properties / 游标属性 ----------
-        EditorGUILayout.BeginHorizontal();
-        GUILayout.Label(L10n.T("cursor_props"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
-        DrawVertexAxisLock("X", ref _manager.CursorLockX, ref _manager.CursorPosition.x);
-        GUILayout.Space(4);
-        DrawVertexAxisLock("Y", ref _manager.CursorLockY, ref _manager.CursorPosition.y);
-        GUILayout.Space(4);
-        DrawVertexAxisLock("Z", ref _manager.CursorLockZ, ref _manager.CursorPosition.z);
-        EditorGUILayout.EndHorizontal();
-        if (GUI.changed)
-        {
-            Undo.RecordObject(_manager, "移动游标");
-            _manager.MarkDirty();
-            SceneView.RepaintAll();
-        }
-
-        // ---------- Lock cursor / 锁定游标 ----------
-        EditorGUILayout.BeginHorizontal();
-        GUILayout.Label(L10n.T("lock_cursor"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
-        bool locked = _manager.CursorLocked;
-        EditorGUI.BeginChangeCheck();
-        locked = EditorGUILayout.Toggle(locked);
-        EditorGUILayout.EndHorizontal();
-        if (EditorGUI.EndChangeCheck())
-        {
-            Undo.RecordObject(_manager, "锁定游标");
-            _manager.CursorLocked = locked;
-            _manager.MarkDirty();
-            SceneView.RepaintAll();
-        }
-
-        // ---------- Reset cursor position / 重置游标位置 ----------
-        if (GUILayout.Button(L10n.T("reset_cursor_pos"), GUILayout.Height(20)))
-        {
-            Undo.RecordObject(_manager, "重置游标");
-            Vector3 cp = _manager.CursorPosition;
-            if (!_manager.CursorLockX) cp.x = 0f;
-            if (!_manager.CursorLockY) cp.y = 0f;
-            if (!_manager.CursorLockZ) cp.z = 0f;
-            _manager.CursorPosition = cp;
-            _manager.MarkDirty();
-            SceneView.RepaintAll();
-        }
-        EditorGUI.EndDisabledGroup();
-        GUILayout.Space(4);
+        SharedToolFoldoutUI.DrawCursorFoldout(_manager, k => L10n.T(k),
+            () => Undo.RecordObject(_manager, "游标"),
+            () => _manager.MarkDirty(),
+            () => SceneView.RepaintAll(),
+            _editMode, EditorGUIUtility.currentViewWidth * 0.3f);
     }
     private void DrawVertexAndHandleProps()
     {

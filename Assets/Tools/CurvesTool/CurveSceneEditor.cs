@@ -33,11 +33,9 @@ public static partial class CurveSceneEditor
     private static float CursorHitRadius => (CurveTool.Instance?.CursorDisplaySize ?? 0.15f) * 2f;
 
     private static bool _isDragging;
-    private static bool _isDraggingCursor;
     /// <summary>Whether the current drag already recorded Undo (recorded once per drag to avoid Undo history explosion).
     /// 当前拖拽是否已记录 Undo（只在第一次 MouseDrag 时记录一次，避免 Undo 历史爆炸）</summary>
     private static bool _undoRecorded;
-    private static Vector3 _dragStartCursorPos;
     private static Vector2 _dragStartMouse;
     private static Vector2 _dragStartValue;
     /// <summary>3D drag start mouse position (for 3D curves). / 3D 拖拽起始鼠标位置（3D 曲线用）</summary>
@@ -74,7 +72,7 @@ public static partial class CurveSceneEditor
     private static void OnSceneGUI(SceneView sv)
     {
         var w = CurveTool.Instance;
-        if (w == null || !w.IsEditMode) { _isDragging = false; _isDraggingCursor = false; _undoRecorded = false; return; }
+        if (w == null || !w.IsEditMode) { _isDragging = false; _undoRecorded = false; ToolCursorInteraction.Reset(); return; }
         var m = CurveManager.Instance;
         if (m == null) return;
 

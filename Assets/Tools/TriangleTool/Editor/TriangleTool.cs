@@ -36,6 +36,7 @@ namespace TriangleTool.EditorTools
         public static readonly Color DefaultFallbackColor = Color.white;
         public static readonly Vector3 DefaultSnapGridSize = new Vector3(0.5f, 0.5f, 0.5f);
         public static readonly Vector3 DefaultSnapIncrementMove = Vector3.one;
+        public const float DefaultCursorDisplaySize = 0.15f;
         /// <summary>Default max spawned blocks per frame for the Edit tab's generate. / 编辑页生成默认每帧最大块数。</summary>
         public const int DefaultEditMaxBlocksPerFrame = 200;
         /// <summary>Default max spawned blocks per frame for the Model Import build. / 模型导入构建默认每帧最大块数。</summary>
@@ -78,6 +79,8 @@ namespace TriangleTool.EditorTools
         public bool UseEditorSnapSettings = true;
         public Vector3 SnapGridSize = DefaultSnapGridSize;
         public Vector3 SnapIncrementMove = DefaultSnapIncrementMove;
+        /// <summary>Scene cursor display size (world-scale spheres/arrows). / 场景游标显示尺寸。</summary>
+        public float CursorDisplaySize = DefaultCursorDisplaySize;
 
         // ===== Window state / 窗口状态 =====
         public static TriangleTool Instance { get; private set; }
@@ -359,6 +362,7 @@ namespace TriangleTool.EditorTools
             public bool UseEditorSnapSettings = true;
             public Vector3 SnapGridSize = DefaultSnapGridSize;
             public Vector3 SnapIncrementMove = DefaultSnapIncrementMove;
+            public float CursorDisplaySize = DefaultCursorDisplaySize;
             public int Language = 0; // 0=EN, 1=ZH
         }
 
@@ -384,6 +388,7 @@ namespace TriangleTool.EditorTools
                     UseEditorSnapSettings = UseEditorSnapSettings,
                     SnapGridSize = SnapGridSize,
                     SnapIncrementMove = SnapIncrementMove,
+                    CursorDisplaySize = CursorDisplaySize,
                     Language = (int)TriangleL10n.Current,
                 };
                 System.IO.File.WriteAllText(SettingsPath, JsonUtility.ToJson(s, prettyPrint: true));
@@ -414,6 +419,7 @@ namespace TriangleTool.EditorTools
                 UseEditorSnapSettings = s.UseEditorSnapSettings;
                 SnapGridSize = s.SnapGridSize;
                 SnapIncrementMove = s.SnapIncrementMove;
+                CursorDisplaySize = s.CursorDisplaySize;
                 TriangleL10n.SetLanguage((TriangleL10n.Lang)s.Language);
             }
             catch { /* 忽略损坏的配置文件 */ }

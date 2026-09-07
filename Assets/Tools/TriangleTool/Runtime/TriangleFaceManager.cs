@@ -16,7 +16,7 @@ namespace TriangleTool
     /// 三角面随场景保存/加载（Ctrl+S 落盘）；选中态为会话状态（NonSerialized）。
     /// 通过 Undo.RecordObject 直接作用于该组件实现 Undo。
     /// </summary>
-    public class TriangleFaceManager : MonoBehaviour
+    public class TriangleFaceManager : MonoBehaviour, IToolCursorHost
     {
         /// <summary>Fixed name of the carrier object (hidden in the scene, serialized with it).
         /// 载体对象的固定名称（场景内隐藏对象，随场景序列化）</summary>
@@ -33,6 +33,27 @@ namespace TriangleTool
         /// <summary>Last-clicked (anchor) face index — its list select button is drawn bright green.
         /// 最后点击（锚点）的面索引 — 其列表选择按钮高亮为亮绿色。</summary>
         [System.NonSerialized] public int AnchorFaceIndex = -1;
+
+        // ===== Cursor (world-space reference point, shared with the curve tool) / 游标（世界空间参考点，与曲线工具共享） =====
+        /// <summary>Cursor position in world space. / 游标世界坐标。</summary>
+        public Vector3 CursorPosition;
+        /// <summary>Whether the whole cursor is locked (not draggable). / 整个游标是否锁定（不可拖拽）。</summary>
+        public bool CursorLocked;
+        /// <summary>Per-axis cursor locks. / 游标分轴锁。</summary>
+        public bool CursorLockX, CursorLockY, CursorLockZ;
+        /// <summary>When on, transform center switches from the world origin to the cursor. / 开启时变换中心切换到游标。</summary>
+        public bool CursorReferenceMode;
+
+        // Explicit interface implementation maps the shared cursor contract onto the serialized fields above,
+        // so the scene-persisted cursor data stays intact while the shared UI/render/interaction can drive it.
+        // 显式接口实现把共享游标契约映射到上面这些可序列化字段上——场景持久化数据保持不变，
+        // 而共享 UI/渲染/交互可直接驱动它们。
+        Vector3 IToolCursorHost.CursorPosition { get => CursorPosition; set => CursorPosition = value; }
+        bool IToolCursorHost.CursorLocked { get => CursorLocked; set => CursorLocked = value; }
+        bool IToolCursorHost.CursorLockX { get => CursorLockX; set => CursorLockX = value; }
+        bool IToolCursorHost.CursorLockY { get => CursorLockY; set => CursorLockY = value; }
+        bool IToolCursorHost.CursorLockZ { get => CursorLockZ; set => CursorLockZ = value; }
+        bool IToolCursorHost.CursorReferenceMode { get => CursorReferenceMode; set => CursorReferenceMode = value; }
 
         /// <summary>Currently selected face (null when none selected). / 当前选中的面（无选中时返回 null）</summary>
         public TriangleFace SelectedFace =>

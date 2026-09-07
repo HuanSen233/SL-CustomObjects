@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using ToolLib;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -13,7 +14,7 @@ using UnityEngine.SceneManagement;
 /// 曲线数据随场景保存/加载（Ctrl+S 落盘）；选中态为会话状态（NonSerialized）。
 /// 支持 Undo：Undo.RecordObject 直接作用于场景组件。
 /// </summary>
-public class CurveManager : MonoBehaviour
+public class CurveManager : MonoBehaviour, IToolCursorHost
 {
     /// <summary>Fixed name of the carrier object (hidden in the scene, serialized with it).
     /// 载体对象的固定名称（场景内隐藏对象，随场景序列化）</summary>
@@ -48,6 +49,17 @@ public class CurveManager : MonoBehaviour
     /// <summary>Cursor reference mode: the tool's reference point switches from world origin to the cursor.
     /// 游标参考系：启用后曲线工具的参考点从世界原点切换为游标位置</summary>
     public bool CursorReferenceMode;
+
+    // Explicit interface implementation maps the shared cursor contract onto the serialized fields above,
+    // so the scene-persisted cursor data stays intact while the shared UI/render/interaction can drive it.
+    // 显式接口实现把共享游标契约映射到上面这些可序列化字段上——场景持久化数据保持不变，
+    // 而共享 UI/渲染/交互可直接驱动它们。
+    Vector3 IToolCursorHost.CursorPosition { get => CursorPosition; set => CursorPosition = value; }
+    bool IToolCursorHost.CursorLocked { get => CursorLocked; set => CursorLocked = value; }
+    bool IToolCursorHost.CursorLockX { get => CursorLockX; set => CursorLockX = value; }
+    bool IToolCursorHost.CursorLockY { get => CursorLockY; set => CursorLockY = value; }
+    bool IToolCursorHost.CursorLockZ { get => CursorLockZ; set => CursorLockZ = value; }
+    bool IToolCursorHost.CursorReferenceMode { get => CursorReferenceMode; set => CursorReferenceMode = value; }
 
     /// <summary>Tool directory (Assets-relative path) — derived from the script location, follows folder moves.
     /// Resolved live on every access (no cache): access frequency is low (settings load/save only),
