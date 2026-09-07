@@ -7,13 +7,17 @@ using UnityEngine;
 /// 一条完整的贝塞尔曲线 — 纯虚拟数据，不产生 GameObject。
 /// </summary>
 [System.Serializable]
-public class BezierCurve
+public class BezierCurve : ISerializationCallbackReceiver
 {
     public string Name;
-    /// <summary>Whether this is a 3D curve (UpAxis is ignored; vertices use Height).
-    /// 是否 3D 曲线（3D 时 UpAxis 无效，顶点使用 Height）</summary>
+    /// <summary>Whether this is a 3D curve (Plane is ignored; vertices use Height).
+    /// 是否 3D 曲线（3D 时 Plane 无效，顶点使用 Height）</summary>
     public bool Is3D;
+    /// <summary>[Legacy] Kept only for scene-data migration; use Plane instead. / [废弃] 仅为场景数据迁移保留；请用 Plane。</summary>
+    [Obsolete("Use Plane instead of UpAxis.")]
     public UpAxis UpAxis = UpAxis.Y;
+    /// <summary>World plane the (2D) curve is drawn on. / 2D 曲线所在的世界平面。</summary>
+    public CurvePlane Plane = CurvePlane.XZ;
     public List<CurveVertex> Vertices = new List<CurveVertex>();
     public List<SegmentInfo> Segments = new List<SegmentInfo>();
     public int SegmentCount = 16;
@@ -47,6 +51,19 @@ public class BezierCurve
         curve.RebuildSegments();
         return curve;
     }
+
+    /// <summary>One-time migration: lift a non-default legacy UpAxis (Y/Z/X) into Plane (XZ/XY/YZ).
+    /// The legacy field is kept untouched for re-serialization safety.
+    /// 一次性迁移：把非默认的旧 UpAxis（Y/Z/X）提升到 Plane（XZ/XY/YZ）。旧字段保持不变以保证重新序列化安全。</summary>
+    public void OnAfterDeserialize()
+    {
+#pragma warning disable 0618 // UpAxis is kept only for serialization migration
+        if (Plane == CurvePlane.XZ && UpAxis != UpAxis.Y)
+            Plane = (CurvePlane)(int)UpAxis;
+#pragma warning restore 0618
+    }
+
+    public void OnBeforeSerialize() { }
 
     /// <summary>Rebuilds the Segments list from the current vertices and SegmentCount.
     /// 根据当前顶点和 SegmentCount 重建 Segments 列表</summary>
@@ -327,29 +344,29 @@ public class BezierCurve
     }
 
     /// <summary>Vector2 → 3D world position. / Vector2 → 3D 世界坐标</summary>
-    public Vector3 MapToWorld(Vector2 pt) => UpAxis switch
+    public Vector3 MapToWorld(Vector2 pt) => Plane switch
     {
-        UpAxis.Y => new Vector3(pt.x, 0f, pt.y),
-        UpAxis.Z => new Vector3(pt.x, pt.y, 0f),
-        UpAxis.X => new Vector3(0f, pt.x, pt.y),
+        CurvePlane.XZ => new Vector3(pt.x, 0f, pt.y),
+        CurvePlane.XY => new Vector3(pt.x, pt.y, 0f),
+        CurvePlane.YZ => new Vector3(0f, pt.x, pt.y),
         _ => new Vector3(pt.x, 0f, pt.y),
     };
 
     /// <summary>3D world position → Vector2. / 3D 世界坐标 → Vector2</summary>
-    public Vector2 MapFromWorld(Vector3 w) => UpAxis switch
+    public Vector2 MapFromWorld(Vector3 w) => Plane switch
     {
-        UpAxis.Y => new Vector2(w.x, w.z),
-        UpAxis.Z => new Vector2(w.x, w.y),
-        UpAxis.X => new Vector2(w.y, w.z),
+        CurvePlane.XZ => new Vector2(w.x, w.z),
+        CurvePlane.XY => new Vector2(w.x, w.y),
+        CurvePlane.YZ => new Vector2(w.y, w.z),
         _ => new Vector2(w.x, w.z),
     };
 
     /// <summary>Normal of the editing plane (used for handle orientation). / 编辑平面的法线（用于 Handles 朝向）</summary>
-    public Vector3 PlaneNormal => UpAxis switch
+    public Vector3 PlaneNormal => Plane switch
     {
-        UpAxis.Y => Vector3.up,
-        UpAxis.Z => Vector3.forward,
-        UpAxis.X => Vector3.right,
+        CurvePlane.XZ => Vector3.up,
+        CurvePlane.XY => Vector3.forward,
+        CurvePlane.YZ => Vector3.right,
         _ => Vector3.up,
     };
 

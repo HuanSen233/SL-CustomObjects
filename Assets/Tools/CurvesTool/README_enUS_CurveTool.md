@@ -37,7 +37,7 @@ Menu: **Tools → Curve Tool** (window title: Curve Tool).
 2. In the **Edit** tab, press the **Curve Edit** button (turns green = editing mode enabled)
 3. In the **Curve List**, enter a name and press **2D** or **3D** to create a curve
 4. Select and drag vertices / handles in the Scene view to shape the curve (see the operation table below)
-5. Press **Generate** to spawn objects along the curve (toggle **Preview** first to see wireframes)
+5. Press **Generate** to spawn objects along the curve (switch **Preview** to Wireframe/Triangles first to see the result)
 
 ---
 
@@ -49,10 +49,10 @@ Menu: **Tools → Curve Tool** (window title: Curve Tool).
 |---|---|
 | **Curve Edit** toggle | Enables Scene-view editing of curves (button turns green when on) |
 | **Curve Tools** | Flip X/Y/Z, Mirror X/Y/Z (about origin or cursor), Cursor Reference Frame toggle, cursor position (with per-axis locks) / lock / reset |
-| **Curve List** | Create row (name + segment count + 2D/3D buttons); each row: select ○, display D, lock L, name, axis, segment count, loop R, copy C, delete ✕; "Delete All Curves" at the bottom |
+| **Curve List** | Create row (name + segment count + 2D/3D buttons); each row: select ○, display D, enable E, lock L, name, plane (XZ/XY/YZ), segment count, loop R, copy C, delete ✕; "Delete All Curves" at the bottom |
 | **Vertex & Handle Properties** | Position of the selected vertex (per-axis locks), handle type, left/right handle positions (per-axis locks) |
 | **Segment Properties** | Base primitive, base scale, center offset, fit segment length, relative scale, rotation offset, position offset of selected micro-segments (applies to all selected segments) |
-| **Generate Objects** | Object color, **Generate** button, **Preview** toggle |
+| **Generate Objects** | Object color, **Generate** button, **Preview** mode (Off / Wireframe / Triangles, click to cycle) |
 
 ### Settings Tab
 
@@ -63,10 +63,6 @@ Menu: **Tools → Curve Tool** (window title: Curve Tool).
 | Color | Vertex color, handle-end color |
 | Language | English / 简体中文 (switches immediately) |
 | Other | Reset to Default |
-
-### About Tab
-
-Usage instructions, key bindings and the button legend.
 
 ---
 
@@ -114,7 +110,12 @@ Vertex positions, handle positions and the cursor position each have **L** butto
    - **Center Offset / Position Offset / Rotation Offset**: fine adjustments along and around the segment direction
 3. Press **Generate** — blocks are parented under `Curve Generated_{curve name}`
 
-> 💡 **Preview**: toggle **Preview** to see block wireframes in the scene — what you see is exactly what you get (identical math as generation).
+> 💡 **Preview** (three modes, click the button to cycle):
+> - **Off**: no preview.
+> - **Wireframe**: hand-drawn outlines — Cube = box, Sphere = three rings, Capsule = cylinder + upper/lower hemispheres, Cylinder = discs + vertical lines, Plane = frame + center cross + blue face-normal line, Quad = frame + one diagonal + blue face-normal line.
+> - **Triangles**: real mesh triangle edges read from the object prefab, face-for-face identical to the generated result (falls back to wireframe when the mesh is unreadable).
+>
+> What you see is what you get (preview and generation share the same placement math).
 
 ---
 
@@ -133,7 +134,7 @@ Vertex positions, handle positions and the cursor position each have **L** butto
 A: Make sure the tool window is open and the **Curve Edit** toggle is green.
 
 **Q: Generated objects don't match the preview?**
-A: Preview and generation share the exact same placement math, so they cannot diverge — double-check that the curve isn't hidden and the preview toggle is on while comparing.
+A: Preview and generation share the exact same placement math, so they cannot diverge — double-check that the curve isn't hidden and the preview mode is on while comparing.
 
 **Q: Why are some segments missing objects?**
 A: Segments shorter than 0.001 units are skipped automatically to avoid zero-size blocks.

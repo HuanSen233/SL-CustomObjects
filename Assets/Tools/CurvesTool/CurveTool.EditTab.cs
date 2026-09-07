@@ -1,3 +1,4 @@
+using ToolLib;
 using UnityEditor;
 using UnityEngine;
 
@@ -46,62 +47,51 @@ public partial class CurveTool
         EditorGUILayout.EndScrollView();
     }
 
-    /// <summary>Transform foldout: flip/mirror about the origin or cursor, applied to the selected curve.
-    /// 变换折叠区：翻转/镜像（以原点或游标为中心，作用于选中曲线）</summary>
+    /// <summary>Transform foldout: flip/mirror about the origin or cursor, applied to the selected curve (shared UI).
+    /// 变换折叠区：翻转/镜像（以原点或游标为中心，作用于选中曲线），使用共享 UI。</summary>
     private void DrawTransformFoldout()
     {
         var sel = _manager.SelectedCurve;
         bool canEdit = sel != null && !sel.IsLocked;
-        Vector3 center = _manager.CursorReferenceMode ? _manager.CursorPosition : Vector3.zero;
 
-        // ---------- Flip / 翻转 ----------
-        EditorGUI.BeginDisabledGroup(!canEdit);
-        EditorGUILayout.BeginHorizontal();
-        GUILayout.Label(L10n.T("flip"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
-        bool flipX = DrawAxisButtons(sel, out bool flipY, out bool flipZ);
-        EditorGUILayout.EndHorizontal();
-        EditorGUI.EndDisabledGroup();
+        // Per-axis flippability by the curve's editing plane / 依曲线编辑平面计算各轴可翻转性
+        bool canX = sel == null || sel.Plane != CurvePlane.YZ || sel.Is3D;
+        bool canY = sel == null || sel.Plane != CurvePlane.XZ || sel.Is3D;
+        bool canZ = sel == null || sel.Plane != CurvePlane.XY || sel.Is3D;
 
-        if ((flipX || flipY || flipZ) && canEdit)
-        {
-            Undo.RecordObject(_manager, "翻转顶点");
-            ApplyAxisMirror(sel, flipX, flipY, flipZ, center);
-            _manager.MarkDirty();
-            SceneView.RepaintAll();
-        }
-
-        GUILayout.Space(4);
-
-        // ---------- Mirror (duplicate the selected curve, then flip it along the axis) / 镜像（复制选中曲线后沿轴翻转） ----------
-        EditorGUI.BeginDisabledGroup(!canEdit);
-        EditorGUILayout.BeginHorizontal();
-        GUILayout.Label(L10n.T("mirror"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
-        bool mirX = DrawAxisButtons(sel, out bool mirY, out bool mirZ);
-        EditorGUILayout.EndHorizontal();
-        EditorGUI.EndDisabledGroup();
-
-        if ((mirX || mirY || mirZ) && canEdit)
-        {
-            DuplicateCurve(sel);
-            var dup = _manager.SelectedCurve;
-            if (dup != null)
+        SharedToolFoldoutUI.DrawTransformFoldout(
+            _manager, k => L10n.T(k), canEdit, EditorGUIUtility.currentViewWidth * 0.3f,
+            (canX, canY, canZ),
+            (center, mx, my, mz) =>
             {
-                Undo.RecordObject(_manager, "镜像曲线");
-                ApplyAxisMirror(dup, mirX, mirY, mirZ, center);
+                if (sel == null) return;
+                Undo.RecordObject(_manager, "翻转顶点");
+                ApplyAxisMirror(sel, mx, my, mz, center);
                 _manager.MarkDirty();
                 SceneView.RepaintAll();
-            }
-        }
-        GUILayout.Space(4);
+            },
+            (center, mx, my, mz) =>
+            {
+                if (sel == null) return;
+                DuplicateCurve(sel);
+                var dup = _manager.SelectedCurve;
+                if (dup != null)
+                {
+                    Undo.RecordObject(_manager, "镜像曲线");
+                    ApplyAxisMirror(dup, mx, my, mz, center);
+                    _manager.MarkDirty();
+                    SceneView.RepaintAll();
+                }
+            });
     }
 
     /// <summary>Draws the X/Y/Z axis buttons (disables axes not flippable on the curve's editing plane); returns the X-axis click result.
     /// 绘制 X/Y/Z 三个轴向按钮（按曲线编辑平面禁用不可翻转的轴），返回 X 轴点击结果</summary>
     private bool DrawAxisButtons(BezierCurve sel, out bool clickedY, out bool clickedZ)
     {
-        bool canX = sel == null || sel.UpAxis != UpAxis.X || sel.Is3D;
-        bool canY = sel == null || sel.UpAxis != UpAxis.Y || sel.Is3D;
-        bool canZ = sel == null || sel.UpAxis != UpAxis.Z || sel.Is3D;
+        bool canX = sel == null || sel.Plane != CurvePlane.YZ || sel.Is3D;
+        bool canY = sel == null || sel.Plane != CurvePlane.XZ || sel.Is3D;
+        bool canZ = sel == null || sel.Plane != CurvePlane.XY || sel.Is3D;
 
         EditorGUI.BeginDisabledGroup(!canX);
         bool x = GUILayout.Button("X", GUILayout.Height(22));
@@ -161,70 +151,15 @@ public partial class CurveTool
         curve.RecalculateHandles();
     }
 
-    /// <summary>Cursor foldout: reference-frame toggle / position (per-axis locks) / lock / reset.
-    /// 游标折叠区：参考系开关/位置（分轴锁）/锁定/重置</summary>
+    /// <summary>Cursor foldout: reference-frame toggle / position (per-axis locks) / lock / reset (shared UI).
+    /// 游标折叠区：参考系开关/位置（分轴锁）/锁定/重置，使用共享 UI。</summary>
     private void DrawCursorFoldout()
     {
-        // ---------- Cursor reference frame / 游标参考系 ----------
-        EditorGUI.BeginDisabledGroup(!_editMode);
-        EditorGUILayout.BeginHorizontal();
-        GUILayout.Label(L10n.T("cursor_ref_frame"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
-        bool refMode = _manager.CursorReferenceMode;
-        EditorGUI.BeginChangeCheck();
-        refMode = EditorGUILayout.Toggle(refMode);
-        EditorGUILayout.EndHorizontal();
-        if (EditorGUI.EndChangeCheck())
-        {
-            Undo.RecordObject(_manager, "切换游标参考系");
-            _manager.CursorReferenceMode = refMode;
-            _manager.MarkDirty();
-        }
-
-        // ---------- Cursor properties / 游标属性 ----------
-        EditorGUILayout.BeginHorizontal();
-        GUILayout.Label(L10n.T("cursor_props"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
-        DrawVertexAxisLock("X", ref _manager.CursorLockX, ref _manager.CursorPosition.x);
-        GUILayout.Space(4);
-        DrawVertexAxisLock("Y", ref _manager.CursorLockY, ref _manager.CursorPosition.y);
-        GUILayout.Space(4);
-        DrawVertexAxisLock("Z", ref _manager.CursorLockZ, ref _manager.CursorPosition.z);
-        EditorGUILayout.EndHorizontal();
-        if (GUI.changed)
-        {
-            Undo.RecordObject(_manager, "移动游标");
-            _manager.MarkDirty();
-            SceneView.RepaintAll();
-        }
-
-        // ---------- Lock cursor / 锁定游标 ----------
-        EditorGUILayout.BeginHorizontal();
-        GUILayout.Label(L10n.T("lock_cursor"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
-        bool locked = _manager.CursorLocked;
-        EditorGUI.BeginChangeCheck();
-        locked = EditorGUILayout.Toggle(locked);
-        EditorGUILayout.EndHorizontal();
-        if (EditorGUI.EndChangeCheck())
-        {
-            Undo.RecordObject(_manager, "锁定游标");
-            _manager.CursorLocked = locked;
-            _manager.MarkDirty();
-            SceneView.RepaintAll();
-        }
-
-        // ---------- Reset cursor position / 重置游标位置 ----------
-        if (GUILayout.Button(L10n.T("reset_cursor_pos"), GUILayout.Height(20)))
-        {
-            Undo.RecordObject(_manager, "重置游标");
-            Vector3 cp = _manager.CursorPosition;
-            if (!_manager.CursorLockX) cp.x = 0f;
-            if (!_manager.CursorLockY) cp.y = 0f;
-            if (!_manager.CursorLockZ) cp.z = 0f;
-            _manager.CursorPosition = cp;
-            _manager.MarkDirty();
-            SceneView.RepaintAll();
-        }
-        EditorGUI.EndDisabledGroup();
-        GUILayout.Space(4);
+        SharedToolFoldoutUI.DrawCursorFoldout(_manager, k => L10n.T(k),
+            () => Undo.RecordObject(_manager, "游标"),
+            () => _manager.MarkDirty(),
+            () => SceneView.RepaintAll(),
+            _editMode, EditorGUIUtility.currentViewWidth * 0.3f);
     }
     private void DrawVertexAndHandleProps()
     {
@@ -260,21 +195,23 @@ public partial class CurveTool
 
         // Vertex position + axis locks / 顶点位置 + 轴锁
         bool is3dCurve = vertex != null && _manager.SelectedCurve != null && _manager.SelectedCurve.Is3D;
+        var selPlane = _manager.SelectedCurve?.Plane ?? CurvePlane.XZ;
+        GetPlaneAxisLabels(selPlane, is3dCurve, out string axisA, out string axisNormal, out string axisB);
         EditorGUI.BeginChangeCheck();
         EditorGUILayout.BeginHorizontal();
         GUILayout.Label(L10n.T("vertex_position"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
-        DrawVertexAxisLock("X", ref _vertexLockX, ref _vertexPosition.x);
+        DrawVertexAxisLock(axisA, ref _vertexLockX, ref _vertexPosition.x);
         GUILayout.Space(4);
-        // Y axis (height): grayed out for 2D, editable for 3D / Y 轴（高度/Height）：2D 灰显，3D 解锁
+        // Normal axis (height): grayed out for 2D, editable for 3D / 法线轴（高度/Height）：2D 灰显，3D 解锁
         if (is3dCurve)
-            DrawVertexAxisLock("Y", ref _vertexLockZ, ref _vertexHeight);
+            DrawVertexAxisLock(axisNormal, ref _vertexLockZ, ref _vertexHeight);
         else
         {
-            DrawYAxis2DPlaceholder();
+            DrawYAxis2DPlaceholder(axisNormal);
         }
         GUILayout.Space(4);
-        // Z axis (plane) / Z 轴（平面）
-        DrawVertexAxisLock("Z", ref _vertexLockY, ref _vertexPosition.y);
+        // Second plane axis / 平面第二轴
+        DrawVertexAxisLock(axisB, ref _vertexLockY, ref _vertexPosition.y);
         EditorGUILayout.EndHorizontal();
         if (EditorGUI.EndChangeCheck() && vertex != null)
         {
@@ -347,6 +284,8 @@ public partial class CurveTool
     private void DrawHandlePosition(CurveVertex vertex, bool is3d)
     {
         EditorGUI.BeginDisabledGroup(vertex == null);
+        var hp = _manager.SelectedCurve?.Plane ?? CurvePlane.XZ;
+        GetPlaneAxisLabels(hp, is3d, out string hA, out string hN, out string hB);
 
         if (vertex != null)
         {
@@ -367,18 +306,18 @@ public partial class CurveTool
         EditorGUI.BeginChangeCheck();
         EditorGUILayout.BeginHorizontal();
         GUILayout.Label(L10n.T("left_handle"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
-        DrawVertexAxisLock("X", ref _leftHandleLockX, ref _leftHandlePos.x);
+        DrawVertexAxisLock(hA, ref _leftHandleLockX, ref _leftHandlePos.x);
         GUILayout.Space(4);
-        // Y axis (height offset) / Y 轴（高度偏移）
+        // Normal axis (height offset) / 法线轴（高度偏移）
         if (is3d)
-            DrawVertexAxisLock("Y", ref _leftHandleLockZ, ref _leftHandleHeight);
+            DrawVertexAxisLock(hN, ref _leftHandleLockZ, ref _leftHandleHeight);
         else
         {
-            DrawYAxis2DPlaceholder();
+            DrawYAxis2DPlaceholder(hN);
         }
         GUILayout.Space(4);
-        // Z axis (plane offset) / Z 轴（平面偏移）
-        DrawVertexAxisLock("Z", ref _leftHandleLockY, ref _leftHandlePos.y);
+        // Second plane axis / 平面第二轴
+        DrawVertexAxisLock(hB, ref _leftHandleLockY, ref _leftHandlePos.y);
         if (EditorGUI.EndChangeCheck() && vertex != null)
         {
             Undo.RecordObject(_manager, "修改左柄位置");
@@ -399,18 +338,18 @@ public partial class CurveTool
         EditorGUI.BeginChangeCheck();
         EditorGUILayout.BeginHorizontal();
         GUILayout.Label(L10n.T("right_handle"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
-        DrawVertexAxisLock("X", ref _rightHandleLockX, ref _rightHandlePos.x);
+        DrawVertexAxisLock(hA, ref _rightHandleLockX, ref _rightHandlePos.x);
         GUILayout.Space(4);
-        // Y axis (height offset) / Y 轴（高度偏移）
+        // Normal axis (height offset) / 法线轴（高度偏移）
         if (is3d)
-            DrawVertexAxisLock("Y", ref _rightHandleLockZ, ref _rightHandleHeight);
+            DrawVertexAxisLock(hN, ref _rightHandleLockZ, ref _rightHandleHeight);
         else
         {
-            DrawYAxis2DPlaceholder();
+            DrawYAxis2DPlaceholder(hN);
         }
         GUILayout.Space(4);
-        // Z axis (plane offset) / Z 轴（平面偏移）
-        DrawVertexAxisLock("Z", ref _rightHandleLockY, ref _rightHandlePos.y);
+        // Second plane axis / 平面第二轴
+        DrawVertexAxisLock(hB, ref _rightHandleLockY, ref _rightHandlePos.y);
         if (EditorGUI.EndChangeCheck() && vertex != null)
         {
             Undo.RecordObject(_manager, "修改右柄位置");
@@ -431,17 +370,31 @@ public partial class CurveTool
         GUILayout.Space(2);
     }
 
-    /// <summary>Grayed-out placeholder for the 2D curve Y (height) axis: no height to edit, gray styling hints at 2D mode.
-    /// 2D 曲线 Y 轴（高度）灰显占位：无高度轴可编辑，用置灰样式提示 2D 模式</summary>
-    private void DrawYAxis2DPlaceholder()
+    /// <summary>Grayed-out placeholder for the 2D curve's normal (height) axis: no height to edit, gray styling hints at 2D mode.
+    /// 2D 曲线的法线（高度）轴灰显占位：无高度轴可编辑，用置灰样式提示 2D 模式</summary>
+    private void DrawYAxis2DPlaceholder(string axisName)
     {
         GUI.backgroundColor = UiPlaceholderGray;
         GUILayout.Label("L", GUILayout.Width(20), GUILayout.Height(18));
         GUI.backgroundColor = Color.white;
-        GUILayout.Label("Y", GUILayout.Width(12));
+        GUILayout.Label(axisName, GUILayout.Width(12));
         EditorGUI.BeginDisabledGroup(true);
         EditorGUILayout.TextField("2D", GUILayout.MinWidth(30));
         EditorGUI.EndDisabledGroup();
+    }
+
+    /// <summary>Plane-aware axis labels: axisA/axisB are the two editable plane axes (map to Position.x/.y);
+    /// axisNormal is the plane normal (the grayed "height" for 2D, the editable world-Y height for 3D).
+    /// 依平面的轴标签：axisA/axisB 为平面内两个可编辑轴（对应 Position.x/.y）；axisNormal 为平面法线（2D 下灰显高度，3D 下世界 Y 高度）。</summary>
+    private void GetPlaneAxisLabels(CurvePlane plane, bool is3d, out string axisA, out string axisNormal, out string axisB)
+    {
+        if (is3d) { axisA = "X"; axisNormal = "Y"; axisB = "Z"; return; } // 3D：X / 高度Y / Z
+        switch (plane)
+        {
+            case CurvePlane.XY: axisA = "X"; axisNormal = "Z"; axisB = "Y"; break;
+            case CurvePlane.YZ: axisA = "Y"; axisNormal = "X"; axisB = "Z"; break;
+            default: axisA = "X"; axisNormal = "Y"; axisB = "Z"; break; // XZ
+        }
     }
 
     /// <summary>Draws a lock button + label + float field (shared by vertices/handles/cursor).
@@ -472,10 +425,10 @@ public partial class CurveTool
         _newCurveName = EditorGUILayout.TextField(_newCurveName, GUILayout.MinWidth(60));
         _defaultSegmentCount = Mathf.Clamp(EditorGUILayout.IntField(_defaultSegmentCount, GUILayout.Width(36)), 1, 256);
 
-        // 2D button: creates a UpAxis.Y curve directly / 2D 按钮：直接创建 UpAxis.Y 曲线
+        // 2D button: creates a curve on the XZ plane by default / 2D 按钮：默认在 XZ 平面创建曲线
         GUI.backgroundColor = UiCreateGreen;
         if (GUILayout.Button("2D", GUILayout.Width(45)))
-            CreateNewCurve(UpAxis.Y);
+            CreateNewCurve(CurvePlane.XZ);
 
         // 3D button: creates a 3D curve / 3D 按钮：创建 3D 曲线
         GUI.backgroundColor = UiCreateBlue;
@@ -511,6 +464,12 @@ public partial class CurveTool
             { Undo.RecordObject(_manager, "隐藏"); curve.IsVisible = !curve.IsVisible; _manager.MarkDirty(); SceneView.RepaintAll(); }
             GUI.backgroundColor = isSel ? UiSelectedBg : Color.white;
 
+            // Enable E (generation permission; disabled curves cannot generate objects) / 启用 E（生成许可，禁用时不可生成物体）
+            GUI.backgroundColor = curve.IsEnabled ? Color.white : UiPlaceholderGray;
+            if (GUILayout.Button("E", GUILayout.Width(22)))
+            { Undo.RecordObject(_manager, "启用"); curve.IsEnabled = !curve.IsEnabled; _manager.MarkDirty(); SceneView.RepaintAll(); }
+            GUI.backgroundColor = isSel ? UiSelectedBg : Color.white;
+
             // Lock L / 锁定 L
             GUI.backgroundColor = curve.IsLocked ? UiLockedOrange : UiDisabledGray;
             if (GUILayout.Button("L", GUILayout.Width(22)))
@@ -521,7 +480,7 @@ public partial class CurveTool
             string nn = EditorGUILayout.TextField(curve.Name, GUILayout.MinWidth(44));
             if (nn != curve.Name) { Undo.RecordObject(_manager, "重命名"); curve.Name = nn; _manager.MarkDirty(); }
 
-            // Up axis (3D curves show a grayed-out "3D") / 轴向（3D 曲线灰显为 "3D"）
+            // World plane (3D curves show a grayed-out "3D") / 平面（3D 曲线灰显为 "3D"）
             EditorGUI.BeginDisabledGroup(!_editMode || curve.Is3D);
             if (curve.Is3D)
             {
@@ -529,8 +488,8 @@ public partial class CurveTool
             }
             else
             {
-                var np = (UpAxis)EditorGUILayout.EnumPopup(curve.UpAxis, GUILayout.Width(42));
-                if (np != curve.UpAxis) { Undo.RecordObject(_manager, "轴向"); curve.UpAxis = np; _manager.MarkDirty(); SceneView.RepaintAll(); }
+                var np = (CurvePlane)EditorGUILayout.EnumPopup(curve.Plane, GUILayout.Width(42));
+                if (np != curve.Plane) { Undo.RecordObject(_manager, "平面"); curve.Plane = np; _manager.MarkDirty(); SceneView.RepaintAll(); }
             }
             EditorGUI.EndDisabledGroup();
             // Segment count (clamped 1..256 to avoid huge SegmentInfo lists or overflow) / 线段数（限制 1..256，避免生成海量 SegmentInfo 或越界）
@@ -603,6 +562,8 @@ public partial class CurveTool
             _segPositionOffset = seg.PositionOffset;
             _segFitSegmentLength = seg.FitSegmentLength;
             _segFitAxis = seg.FitAxis;
+            _segFitMode = seg.FitMode;
+            _segFitSizeScale = seg.FitSizeScale;
             _segRelativeScale = seg.RelativeScale;
             _segRotationOffset = seg.RotationOffset;
             _segPositionOffset3D = seg.PositionOffset3D;
@@ -610,8 +571,8 @@ public partial class CurveTool
 
         EditorGUI.BeginDisabledGroup(!hasSelection || !_editMode);
 
-        // Field order: primitive → base scale → center offset → fit axis|length → relative scale → rotation offset → position offset
-        // 字段顺序：基础物体 → 基础缩放 → 中心点偏移 → 缩放轴|适应段长 → 相对缩放 → 旋转偏移 → 位置偏移
+        // Field order: primitive → base scale → center offset → fit enable|mode → scale axis → relative scale → rotation offset → position offset
+        // 字段顺序：基础物体 → 基础缩放 → 中心点偏移 → 适应启用|模式 → 缩放轴 → 相对缩放 → 旋转偏移 → 位置偏移
         EditorGUI.BeginChangeCheck();
         string[] primNames = _primNames ??= new[] { L10n.T("primitive_sphere"), L10n.T("primitive_capsule"), L10n.T("primitive_cylinder"), L10n.T("primitive_cube"), L10n.T("primitive_plane"), L10n.T("primitive_quad") };
         EditorGUILayout.BeginHorizontal();
@@ -631,10 +592,35 @@ public partial class CurveTool
         _segPositionOffset = EditorGUILayout.FloatField(_segPositionOffset);
         EditorGUILayout.EndHorizontal();
 
+        // Fit row: enable toggle + mode dropdown (Simple/Advanced). The axis dropdown moved to its own row below,
+        // since the mode dropdown now occupies this row's popup slot. / 适应行：启用开关 + 模式下拉（简单/进阶）。
+        // 缩放轴下拉被模式下拉占用，故移到下一行独立显示。
         EditorGUILayout.BeginHorizontal();
         GUILayout.Label(L10n.T("fit_length"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
         _segFitSegmentLength = EditorGUILayout.Toggle(_segFitSegmentLength, GUILayout.Width(16));
+        _fitModeNames ??= new[] { L10n.T("fit_mode_simple"), L10n.T("fit_mode_advanced") };
+        // Advanced gap-filling fit only applies to 2D curves: for 3D curves force Simple and gray the mode dropdown.
+        // 进阶填缺口适应模式仅适用于 2D 曲线；3D 曲线强制为简单并灰显模式下拉。
+        bool advancedAllowed = curve == null || !curve.Is3D;
+        if (!advancedAllowed) _segFitMode = 0;
+        EditorGUI.BeginDisabledGroup(!advancedAllowed);
+        _segFitMode = EditorGUILayout.Popup(_segFitMode, _fitModeNames);
+        EditorGUI.EndDisabledGroup();
+        EditorGUILayout.EndHorizontal();
+
+        // Scale axis dropdown (moved to its own row) / 缩放轴下拉（移到下一行）
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.Label(L10n.T("fit_axis"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
         _segFitAxis = EditorGUILayout.Popup(_segFitAxis, AxisNames);
+        EditorGUILayout.EndHorizontal();
+
+        // Fit size scale: distance to each parallel reference line, grayed unless Advanced fit is selected.
+        // 适应尺寸缩放：到每条平行参考线的距离；仅选中进阶时可用。
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.Label(L10n.T("fit_size_scale"), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.3f));
+        EditorGUI.BeginDisabledGroup(_segFitMode != 1);
+        _segFitSizeScale = EditorGUILayout.FloatField(_segFitSizeScale);
+        EditorGUI.EndDisabledGroup();
         EditorGUILayout.EndHorizontal();
 
         // Relative scale X/Y/Z inputs / 相对缩放 X/Y/Z 分轴输入
@@ -672,6 +658,8 @@ public partial class CurveTool
                 curve.Segments[i].PositionOffset = _segPositionOffset;
                 curve.Segments[i].FitSegmentLength = _segFitSegmentLength;
                 curve.Segments[i].FitAxis = _segFitAxis;
+                curve.Segments[i].FitMode = _segFitMode;
+                curve.Segments[i].FitSizeScale = _segFitSizeScale;
                 curve.Segments[i].RelativeScale = _segRelativeScale;
                 curve.Segments[i].RotationOffset = _segRotationOffset;
                 curve.Segments[i].PositionOffset3D = _segPositionOffset3D;

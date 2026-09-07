@@ -1,8 +1,21 @@
 using System;
 using UnityEngine;
 
-/// <summary>Up axis of the curve's editing plane. Y=up (XZ plane), Z=up (XY plane), X=up (YZ plane).
-/// 曲线所在平面的向上轴。Y=上(XZ平面), Z=上(XY平面), X=上(YZ平面)。</summary>
+/// <summary>The world plane a 2D curve is drawn on. XZ/XY/YZ; the plane's normal axis is the "height" (fixed 0 for 2D).
+/// 2D 曲线所在的世界平面。XZ/XY/YZ；平面的法线轴为"高度"（2D 时恒为 0）。
+/// Value order matches the legacy UpAxis (Y=0, Z=1, X=2) so scene data stays compatible.
+/// 值顺序与旧 UpAxis（Y=0, Z=1, X=2）一致，保证场景数据兼容。</summary>
+public enum CurvePlane
+{
+    XZ = 0, // normal = Y (up). Position = (worldX, worldZ). / 法线 = Y（上）
+    XY = 1, // normal = Z (forward). Position = (worldX, worldY). / 法线 = Z（前）
+    YZ = 2, // normal = X (right). Position = (worldY, worldZ). / 法线 = X（右）
+}
+
+/// <summary>[Legacy] Up axis of the curve's editing plane. Superseded by CurvePlane (kept for scene-data migration).
+/// [废弃] 曲线所在平面的向上轴。已由 CurvePlane 取代（仅为场景数据迁移保留）。
+/// Y=up (XZ plane), Z=up (XY plane), X=up (YZ plane).</summary>
+[Obsolete("Use CurvePlane instead of UpAxis.")]
 public enum UpAxis { Y, Z, X }
 
 /// <summary>Handle type (Blender-style). / 控制柄类型（仿 Blender）</summary>
@@ -51,7 +64,11 @@ public class CurveVertex
     public HandleType HandleTypeB = HandleType.Auto;
 
     /// <summary>Per-axis locks for the vertex (protect axes during UI and SceneView drags).
-    /// 顶点分轴锁（UI 和 SceneView 拖拽时保护对应轴不被修改）</summary>
+    /// Axis mapping (matches the editing-plane convention): LockX = world X, LockY = plane-Y (Position.y, i.e. world Z),
+    /// LockZ = world Y (Height). Field names are kept for serialization compatibility.
+    /// 顶点分轴锁（UI 和 SceneView 拖拽时保护对应轴不被修改）。
+    /// 轴映射（与编辑平面约定一致）：LockX=世界X，LockY=平面Y（Position.y，即世界 Z），LockZ=世界Y（Height）。
+    /// 字段名保留原名以保证序列化兼容。</summary>
     public bool LockX, LockY, LockZ;
     /// <summary>Per-axis locks for the left handle. / 左控制柄分轴锁</summary>
     public bool LeftHandleLockX, LeftHandleLockY, LeftHandleLockZ;

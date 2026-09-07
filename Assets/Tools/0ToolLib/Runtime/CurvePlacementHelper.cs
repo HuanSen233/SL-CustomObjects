@@ -19,11 +19,14 @@ public static class CurvePlacementHelper
     /// <param name="i">Micro-segment index (0-based) / 小线段索引（0 起）</param>
     /// <param name="pts">2D sample points (result of SamplePoints(); must stay in sync with pts3d) / 2D 采样点（SamplePoints() 的结果，须与 pts3d 同步）</param>
     /// <param name="pts3d">3D sample points (result of SamplePoints3D(); pass null for non-3D curves) / 3D 采样点（SamplePoints3D() 的结果；非 3D 曲线传 null）</param>
+    /// <param name="refs">Precomputed boundary lines for the curve (CurveFitGeometry.ComputeBoundaryLines); pass
+    /// CurveFitRefs.Empty when no advanced-fit segments are expected. / 该曲线的预计算边界线
+    /// （CurveFitGeometry.ComputeBoundaryLines 的结果）；无进阶段时传 CurveFitRefs.Empty。</param>
     /// <param name="pos">Output: world position (segment center + offset) / 输出：世界位置（段中心 + 偏移）</param>
     /// <param name="rot">Output: world rotation (LookRotation + rotation offset) / 输出：世界旋转（LookRotation + 旋转偏移）</param>
     /// <param name="scale">Output: world scale (BaseScale → FitSegmentLength → RelativeScale) / 输出：世界缩放（BaseScale → FitSegmentLength → RelativeScale）</param>
     public static bool ComputePlacement(BezierCurve curve, int i, List<Vector2> pts, List<Vector3> pts3d,
-        out Vector3 pos, out Quaternion rot, out Vector3 scale)
+        CurveFitRefs refs, out Vector3 pos, out Quaternion rot, out Vector3 scale)
     {
         pos = Vector3.zero;
         rot = Quaternion.identity;
@@ -75,17 +78,64 @@ public static class CurvePlacementHelper
         // 位置偏移在段本地空间
         pos = basePos + rot * seg.PositionOffset3D;
 
-        // Scale chain: BaseScale → (FitSegmentLength multiplies segment length) → × RelativeScale.
-        // 缩放：BaseScale → FitSegmentLength 乘段长 → × RelativeScale
+        // Scale chain: BaseScale → advanced/simple fit → × RelativeScale.
+        // 缩放：BaseScale → 进阶/简单适应 → × RelativeScale
+        float advancedAlong = 0f; // along-segment shift so the object aligns with the footprint center / 将物体对齐足迹中心的沿段偏移
         scale = seg.BaseScale;
         if (seg.FitSegmentLength)
         {
-            if (seg.FitAxis == 0) scale.x *= segLen;
-            else if (seg.FitAxis == 1) scale.y *= segLen;
-            else scale.z *= segLen;
+            if (seg.FitMode == 1 && !curve.Is3D)
+            {
+                // Advanced gap-filling fit (2D only): scale from the footprint rectangle, honoring the FitAxis
+                // selection for the length axis. The width (2 × FitSizeScale) goes to the other in-plane axis,
+                // and the thickness (out-of-plane) keeps its BaseScale default.
+                // 进阶填缺口适应（仅2D）：按足迹矩形取缩放，并遵循 FitAxis 选择的长度轴。
+                // 宽度（2×FitSizeScale）给另一面内轴；厚度（平面法线）保留 BaseScale 默认。
+                if (TryComputeAdvancedFitRect(curve, pts, i, refs, out float fitLen, out float fitWidth, out float fitAlong))
+                {
+                    // Local frame = LookRotation(dir, planeNormal): Z = segment dir, X = in-plane across, Y = plane normal.
+                    // 局部坐标系 = LookRotation(dir, planeNormal)：Z = 段方向，X = 面内横向，Y = 平面法线。
+                    int lenAxis = Mathf.Clamp(seg.FitAxis, 0, 2); // 0=X, 1=Y, 2=Z
+                    int widthAxis, thickAxis;
+                    if (lenAxis == 2) { widthAxis = 0; thickAxis = 1; }        // length→Z, width→X, thick→Y (default)
+                    else if (lenAxis == 0) { widthAxis = 2; thickAxis = 1; }   // length→X, width→Z, thick→Y
+                    else { widthAxis = 0; thickAxis = 2; }                     // length→Y, width→X, thick→Z
+                    Vector3 s = scale;
+                    s[lenAxis] = fitLen;
+                    s[widthAxis] = fitWidth;
+                    // s[thickAxis] stays at its BaseScale default. / s[thickAxis] 保留 BaseScale 默认。
+                    scale = s;
+                    advancedAlong = fitAlong; // shift toward the footprint center / 对齐足迹中心
+                }
+                else
+                {
+                    if (seg.FitAxis == 0) scale.x *= segLen;
+                    else if (seg.FitAxis == 1) scale.y *= segLen;
+                    else scale.z *= segLen;
+                }
+            }
+            else
+            {
+                if (seg.FitAxis == 0) scale.x *= segLen;
+                else if (seg.FitAxis == 1) scale.y *= segLen;
+                else scale.z *= segLen;
+            }
         }
         scale = Vector3.Scale(scale, seg.RelativeScale);
+        // Align advanced-fit objects to the footprint center along the segment direction (fills the bend-side
+        // gap without overhanging the endpoint side). / 进阶物体沿段方向对齐到足迹中心（填弯折侧缺口、端点侧不凸出）。
+        if (advancedAlong != 0f) pos += dir * advancedAlong;
 
         return true;
+    }
+
+    /// <summary>Advanced-fit footprint rectangle for micro-segment i (via the shared CurveFitGeometry), using the
+    /// precomputed boundary lines `refs`; falls back to computing the lines on the fly when `refs` is empty.
+    /// 进阶小段 i 的足迹矩形（经由共享 CurveFitGeometry），使用预计算边界线 refs；refs 为空时现场计算兜底。</summary>
+    private static bool TryComputeAdvancedFitRect(BezierCurve curve, List<Vector2> pts, int i, CurveFitRefs refs,
+        out float length, out float width, out float alongCenter)
+    {
+        if (refs.Has == null) refs = CurveFitGeometry.ComputeBoundaryLines(curve, pts);
+        return CurveFitGeometry.ComputeAdvancedRect(curve, pts, i, refs, out _, out _, out length, out width, out alongCenter);
     }
 }

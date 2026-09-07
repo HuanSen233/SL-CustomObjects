@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using ToolLib;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -13,7 +14,7 @@ using UnityEngine.SceneManagement;
 /// 曲线数据随场景保存/加载（Ctrl+S 落盘）；选中态为会话状态（NonSerialized）。
 /// 支持 Undo：Undo.RecordObject 直接作用于场景组件。
 /// </summary>
-public class CurveManager : MonoBehaviour
+public class CurveManager : MonoBehaviour, IToolCursorHost
 {
     /// <summary>Fixed name of the carrier object (hidden in the scene, serialized with it).
     /// 载体对象的固定名称（场景内隐藏对象，随场景序列化）</summary>
@@ -49,23 +50,34 @@ public class CurveManager : MonoBehaviour
     /// 游标参考系：启用后曲线工具的参考点从世界原点切换为游标位置</summary>
     public bool CursorReferenceMode;
 
+    // Explicit interface implementation maps the shared cursor contract onto the serialized fields above,
+    // so the scene-persisted cursor data stays intact while the shared UI/render/interaction can drive it.
+    // 显式接口实现把共享游标契约映射到上面这些可序列化字段上——场景持久化数据保持不变，
+    // 而共享 UI/渲染/交互可直接驱动它们。
+    Vector3 IToolCursorHost.CursorPosition { get => CursorPosition; set => CursorPosition = value; }
+    bool IToolCursorHost.CursorLocked { get => CursorLocked; set => CursorLocked = value; }
+    bool IToolCursorHost.CursorLockX { get => CursorLockX; set => CursorLockX = value; }
+    bool IToolCursorHost.CursorLockY { get => CursorLockY; set => CursorLockY = value; }
+    bool IToolCursorHost.CursorLockZ { get => CursorLockZ; set => CursorLockZ = value; }
+    bool IToolCursorHost.CursorReferenceMode { get => CursorReferenceMode; set => CursorReferenceMode = value; }
+
     /// <summary>Tool directory (Assets-relative path) — derived from the script location, follows folder moves.
-    /// 工具目录（Assets 相对路径）— 基于脚本位置动态推导，目录移动后自动跟随</summary>
+    /// Resolved live on every access (no cache): access frequency is low (settings load/save only),
+    /// and a moved folder is picked up immediately.
+    /// 工具目录（Assets 相对路径）— 基于脚本位置动态推导，目录移动后自动跟随。
+    /// 每次访问实时解析（不做缓存）：访问频率低（仅设置读写时），目录移动后立即生效</summary>
     public static string ToolDirectory
     {
         get
         {
-            if (_toolDirectory != null) return _toolDirectory;
             // Locate the directory via the script asset (script name is unique in the project).
             // 通过脚本名查找脚本资产定位目录（脚本名在项目内唯一）
             var guids = AssetDatabase.FindAssets("CurveManager t:MonoScript");
-            _toolDirectory = guids.Length > 0
+            return guids.Length > 0
                 ? Path.GetDirectoryName(AssetDatabase.GUIDToAssetPath(guids[0])).Replace('\\', '/')
                 : "Assets/Tools/CurvesTool";
-            return _toolDirectory;
         }
     }
-    private static string _toolDirectory;
 
     // ===== Singleton binding / 单例绑定 =====
 
@@ -195,16 +207,18 @@ public class CurveManager : MonoBehaviour
     // ===== Data operations / 数据操作 =====
 
     /// <summary>Adds a new curve with 2D/3D initialization. / 添加新曲线，支持 2D/3D 初始化</summary>
-    public BezierCurve AddNewCurve(string name = "NewCurve", int segmentCount = 16, UpAxis upAxis = UpAxis.Y)
+    public BezierCurve AddNewCurve(string name = "NewCurve", int segmentCount = 16, CurvePlane plane = CurvePlane.XZ)
     {
         Undo.RecordObject(this, "添加曲线");
         var curve = BezierCurve.CreateDefault(name);
         curve.SegmentCount = Mathf.Max(1, segmentCount);
-        curve.UpAxis = upAxis;
+        curve.Plane = plane;
         curve.RebuildSegments();
         curve.RecalculateHandles();
         Curves.Add(curve);
-        SelectedCurveIndex = Curves.Count - 1;
+        // Full selection (IsSelected = true so the new curve highlights in the Scene view too).
+        // 完整选中（IsSelected 置位，新曲线在场景视图中同步高亮）
+        Select(Curves.Count - 1);
         MarkDirty();
         return curve;
     }

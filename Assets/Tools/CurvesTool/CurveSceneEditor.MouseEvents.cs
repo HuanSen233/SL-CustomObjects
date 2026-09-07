@@ -1,3 +1,4 @@
+using ToolLib;
 using UnityEditor;
 using UnityEngine;
 
@@ -48,6 +49,15 @@ public static partial class CurveSceneEditor
                 {
                     if (m.Curves[hit.curveIndex].IsLocked) { e.Use(); return; }
                     m.Select(hit.curveIndex, hit.vertexIndex, hit.subElement, shift);
+                    if (w.UseMoveTool && Tools.current == Tool.Move)
+                    {
+                        // Move-tool editing: select only (so the PositionHandle shows); do NOT set _isDragging
+                        // and do NOT consume the event, letting the PositionHandle take over the drag.
+                        // 移动工具编辑：仅选中（使 PositionHandle 显示）；不进入自写拖拽、不消费事件，让 PositionHandle 接管拖拽。
+                        ToolCursorInteraction.SetCursorSelected(false);
+                        w.Repaint();
+                        return;
+                    }
                     _isDragging = true;
                     _undoRecorded = false;
                     _dragStartMouse = GetMouseWorldPos(e, w);
@@ -97,15 +107,25 @@ public static partial class CurveSceneEditor
                     else if (!shift)
                     {
                         // Try to hit the cursor / 尝试命中游标
-                        if (!m.CursorLocked && HitTestCursor(m, e))
+                        if (ToolCursorInteraction.TryHitCursor(m, e, CurveTool.Instance?.CursorDisplaySize ?? 0.15f))
                         {
-                            _isDraggingCursor = true;
-                            _undoRecorded = false;
-                            _dragStartCursorPos = m.CursorPosition;
-                            e.Use();
+                            // Move-tool editing: select the cursor so its PositionHandle shows; no built-in drag.
+                            // 移动工具编辑：选中游标以显示其 PositionHandle；不再使用自带拖拽。
+                            // Do NOT consume the mouse-down: let the cursor PositionHandle grab the drag.
+                            // 不消费鼠标按下：让游标 PositionHandle 能够接管拖拽。
+                            ToolCursorInteraction.SetCursorSelected(true);
+                            m.ClearSelection();
+                            SceneView.RepaintAll();
+                            w.Repaint();
+                            return;
                         }
                         else
                         {
+                            // A click on the move-handle gizmo (axis arrows/center) must NOT clear the selection,
+                            // otherwise the handle disappears and its arrows can never be clicked.
+                            // 点击移动手柄 Gizmo（轴箭头/中心）不能清空选中，否则手柄消失、轴箭头无法点选。
+                            if (IsOnMoveHandleGizmo(m, e.mousePosition)) return;
+                            ToolCursorInteraction.SetCursorSelected(false);
                             m.ClearSelection();
                             _isDragging = false;
                             e.Use();
@@ -123,7 +143,7 @@ public static partial class CurveSceneEditor
             if (ch.curveIndex >= 0 && ch.segmentIndex >= 0 && !m.Curves[ch.curveIndex].IsLocked)
             {
                 var curve = m.Curves[ch.curveIndex];
-                Vector2 ip = GetMouseWorldPos(e, w, curve.UpAxis);
+                Vector2 ip = GetMouseWorldPos(e, w, curve.Plane);
                 // Clear the curve selection state first / 先清理曲线选中状态
                 curve.IsSelected = false;
                 foreach (var v in curve.Vertices) { v.IsSelected = false; v.SelectedSubElement = 0; }
@@ -192,39 +212,11 @@ public static partial class CurveSceneEditor
 
     private static void HandleMouseDrag(Event e, CurveManager m, CurveTool w)
     {
-        // Cursor dragging / 游标拖拽
-        if (_isDraggingCursor)
-        {
-            if (!_undoRecorded) { Undo.RecordObject(m, "移动游标"); _undoRecorded = true; }
-            Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
-            Plane p = new Plane(-Camera.current.transform.forward, m.CursorPosition);
-            if (p.Raycast(ray, out float dist))
-            {
-                Vector3 hit = ray.GetPoint(dist);
-
-                // Grid/increment snap (step: EditorSnapSettings.move in editor mode, tool-local values otherwise)
-                // 网格吸附/增量吸附（步长：编辑器模式取 EditorSnapSettings.move，工具模式取工具设置）
-                if (EditorSnapSettings.gridSnapEnabled || e.control || e.command)
-                {
-                    Vector3 gs = GetSnapStep(w, e.control || e.command);
-                    hit = SnapVector3(hit, gs);
-                }
-
-                // Per-axis locks: keep locked axes unchanged / 分轴锁：保持被锁轴的值不变
-                if (m.CursorLockX) hit.x = m.CursorPosition.x;
-                if (m.CursorLockY) hit.y = m.CursorPosition.y;
-                if (m.CursorLockZ) hit.z = m.CursorPosition.z;
-
-                m.CursorPosition = hit;
-            }
-            m.MarkDirty();
-            e.Use();
-            SceneView.RepaintAll();
-            CurveTool.Instance?.Repaint();
-            return;
-        }
-
         if (!_isDragging) return;
+        // Move-tool-only editing: vertex/handle movement is delegated to the Unity Move tool (PositionHandle);
+        // the built-in drag path below is retained only for reference and is never reached (deprecated).
+        // 仅移动工具(W)编辑：顶点/控制柄移动交由 Unity 移动工具（PositionHandle）处理；下方自带拖拽仅作参考，永不到达（废弃）。
+        if (w.UseMoveTool && Tools.current == Tool.Move) { return; }
         var vertex = m.SelectedVertex;
         if (vertex == null) return;
 
@@ -420,7 +412,6 @@ public static partial class CurveSceneEditor
     private static void HandleMouseUp(Event e)
     {
         if (_isDragging && e.button == 0) { _isDragging = false; _undoRecorded = false; e.Use(); }
-        if (_isDraggingCursor && e.button == 0) { _isDraggingCursor = false; _undoRecorded = false; e.Use(); }
     }
 
     private static void HandleKeyDown(Event e, CurveManager m)

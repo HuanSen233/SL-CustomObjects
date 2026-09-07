@@ -1,5 +1,17 @@
+using ToolLib;
 using UnityEditor;
 using UnityEngine;
+
+/// <summary>Preview style of generated objects. / 生成物预览样式</summary>
+public enum PreviewStyle
+{
+    /// <summary>Off: no preview wireframes. / 关：不显示预览</summary>
+    Off = 0,
+    /// <summary>Wireframe: hand-drawn outline per primitive. / 线框：各物体的手绘轮廓线框</summary>
+    Wireframe = 1,
+    /// <summary>Triangles: real mesh triangle edges (from the prefab mesh). / 三角面：真实网格三角面边（取自 Prefab 网格）</summary>
+    Triangles = 2,
+}
 
 /// <summary>
 /// Curve Tool — EditorWindow skeleton (fields, lifecycle, persistence, business logic).
@@ -11,7 +23,7 @@ public partial class CurveTool : EditorWindow
 {
     private CurveManager _manager;
     private bool _editMode;
-    private bool _previewMode;
+    private PreviewStyle _previewStyle;
 
     private int _selectedTab;
     private string[] _tabs;
@@ -33,6 +45,8 @@ public partial class CurveTool : EditorWindow
     private PrimitiveType _segPrimitiveType = PrimitiveType.Cube;
     private bool _segFitSegmentLength = true;
     private int _segFitAxis = 2;
+    private int _segFitMode = 0;
+    private float _segFitSizeScale = 0.5f;
 
     // ===== Cursor/vertex/handle edit buffers / 游标/顶点/控制柄编辑缓冲 =====
     private Vector2 _vertexPosition;
@@ -43,6 +57,7 @@ public partial class CurveTool : EditorWindow
     // ===== Localization/option caches (avoid per-frame allocations) / 本地化/选项缓存（避免每帧分配新数组）=====
     private string[] _htNames;
     private string[] _primNames;
+    private string[] _fitModeNames;
     private static readonly string[] AxisNames = { "X", "Y", "Z" };
     private static readonly string[] LangNames = { "English", "简体中文" };
 
@@ -56,7 +71,7 @@ public partial class CurveTool : EditorWindow
 
     // ===== Public properties / 公共属性 =====
     public bool IsEditMode => _editMode;
-    public bool PreviewMode => _previewMode;
+    public PreviewStyle PreviewStyle => _previewStyle;
     public int DefaultSegmentCount => _defaultSegmentCount;
 
     // ===== Default value constants (single source shared by field init, ToolSettings and Reset to avoid drift) / 默认值常量（唯一来源：字段初始化、ToolSettings、重置按钮共用，避免漂移）=====
@@ -93,7 +108,6 @@ public partial class CurveTool : EditorWindow
     public Color HandleEndPointColor = DefaultHandleEndPointColor;
     public Color SelectedColor = Color.yellow;
     public Color SelectedSegmentColor = new Color(0.3f, 0.5f, 1f, 0.8f);
-    public Color PreviewWireColor = new Color(1f, 1f, 1f, 0.25f);
     public Color GenerationColor = DefaultGenerationColor;
     public float CursorDisplaySize = DefaultCursorDisplaySize;
     public float ArrowSize = DefaultArrowSize;
@@ -112,6 +126,11 @@ public partial class CurveTool : EditorWindow
     public bool UseEditorSnapSettings = true;
     public Vector3 SnapGridSize = DefaultSnapGridSize;
     public Vector3 SnapIncrementMove = DefaultSnapIncrementMove;
+
+    // ===== Move-tool editing / 移动工具编辑 =====
+    /// <summary>Move vertices/handles with the Unity Move tool (W) instead of the built-in drag logic; when on, the tool's own vertex/handle drag is suppressed.
+    /// 使用 Unity 移动工具（W）移动顶点/控制柄而非工具自带的拖拽逻辑；开启时屏蔽工具自身的顶点/控制柄拖拽。</summary>
+    public bool UseMoveTool = true;
 
     // ===== Window lifecycle / 窗口生命周期 =====
 
@@ -142,6 +161,7 @@ public partial class CurveTool : EditorWindow
         SaveSettings();
         if (Instance == this) Instance = null;
         _editMode = false;
+        EditModeGate.Request("curve", false, null);
         CurveSceneRenderer.Unregister();
         CurveSceneEditor.Unregister();
         SceneView.RepaintAll();
@@ -151,7 +171,9 @@ public partial class CurveTool : EditorWindow
 
     private void OnGUI()
     {
-        if (_manager == null) _manager = CurveManager.Instance;
+        // Rebind after scene switches: the cached _manager belongs to the scene active when the window opened.
+        // 场景切换后重新绑定：缓存的 _manager 属于窗口打开时的场景，可能已过期
+        if (_manager == null || _manager != CurveManager.Instance) _manager = CurveManager.Instance;
         DrawHeader();
         // Clamp the tab index to prevent out-of-range access (e.g. stale _selectedTab after tabs were removed).
         // 防止历史选中索引越界（如移除页签后残留的 _selectedTab）
@@ -189,28 +211,48 @@ public partial class CurveTool : EditorWindow
         GUI.backgroundColor = _editMode ? UiActionGreen : Color.white;
         bool newEdit = GUILayout.Toggle(_editMode, $" {L10n.T("curve_edit")}", "Button", GUILayout.Height(28), GUILayout.Width(editW));
         GUI.backgroundColor = Color.white;
-        if (newEdit != _editMode) { _editMode = newEdit; SceneView.RepaintAll(); }
+        if (newEdit != _editMode)
+        {
+            // Mutual exclusion: turning edit mode on takes ownership and turns the other tool's edit mode off.
+            // 互斥：开启编辑模式即取得占用，并关闭另一工具（三角面）的编辑模式。
+            EditModeGate.Request("curve", newEdit, () => { _editMode = false; SceneView.RepaintAll(); });
+            _editMode = newEdit;
+            if (newEdit) ToolCursorInteraction.SetCursorSelected(false);
+            SceneView.RepaintAll();
+        }
 
-        // Preview (1/5, a view mode alongside Curve Edit) / 预览（1/5，视图模式与曲线编辑并列）
-        GUI.backgroundColor = _previewMode ? UiPreviewBlue : Color.white;
-        bool newPrev = GUILayout.Toggle(_previewMode, $" {L10n.T("preview")}", "Button", GUILayout.Height(28), GUILayout.Width(previewW));
+        // Preview (1/5, a view mode alongside Curve Edit; cycles Off → Wireframe → Triangles → Off)
+        // 预览（1/5，视图模式与曲线编辑并列；点击循环 关 → 线框 → 三角面 → 关）
+        string previewLabel = _previewStyle switch
+        {
+            PreviewStyle.Wireframe => L10n.T("preview_wire"),
+            PreviewStyle.Triangles => L10n.T("preview_triangles"),
+            _ => L10n.T("preview_off"),
+        };
+        GUI.backgroundColor = _previewStyle switch
+        {
+            PreviewStyle.Wireframe => UiPreviewBlue,
+            PreviewStyle.Triangles => UiCreateGreen,
+            _ => Color.white,
+        };
+        if (GUILayout.Button($" {L10n.T("preview")}: {previewLabel}", "Button", GUILayout.Height(28), GUILayout.Width(previewW)))
+        {
+            _previewStyle = (PreviewStyle)(((int)_previewStyle + 1) % 3);
+            SceneView.RepaintAll();
+        }
         GUI.backgroundColor = Color.white;
-        if (newPrev != _previewMode) { _previewMode = newPrev; SceneView.RepaintAll(); }
 
         EditorGUILayout.EndHorizontal();
     }
 
     // ===== Business logic / 业务逻辑 =====
 
-    /// <summary>Creates a new curve with the given up axis. / 用指定轴向创建新曲线</summary>
-    private void CreateNewCurve(UpAxis upAxis)
+    /// <summary>Creates a new curve on the given world plane. / 用指定世界平面创建新曲线</summary>
+    private void CreateNewCurve(CurvePlane plane)
     {
         string baseName = string.IsNullOrWhiteSpace(_newCurveName) ? "NewCurve" : _newCurveName;
-        string finalName = baseName;
-        int dedup = 1;
-        while (_manager.Curves.Exists(c => c.Name == finalName))
-            finalName = $"{baseName}{dedup++}";
-        var newCurve = _manager.AddNewCurve(finalName, _defaultSegmentCount, upAxis);
+        string finalName = NameUtil.Deduplicate(baseName, n => _manager.Curves.Exists(c => c.Name == n));
+        var newCurve = _manager.AddNewCurve(finalName, _defaultSegmentCount, plane);
         newCurve.RecalculateHandles();
         _newCurveName = "NewCurve";
         SceneView.RepaintAll();
@@ -220,10 +262,7 @@ public partial class CurveTool : EditorWindow
     private void CreateNew3DCurve()
     {
         string baseName = string.IsNullOrWhiteSpace(_newCurveName) ? "New3DCurve" : _newCurveName;
-        string finalName = baseName;
-        int dedup = 1;
-        while (_manager.Curves.Exists(c => c.Name == finalName))
-            finalName = $"{baseName}{dedup++}";
+        string finalName = NameUtil.Deduplicate(baseName, n => _manager.Curves.Exists(c => c.Name == n));
         var curve = BezierCurve.CreateDefault3D(finalName);
         Undo.RecordObject(_manager, "创建 3D 曲线");
         _manager.Curves.Add(curve);
@@ -243,10 +282,7 @@ public partial class CurveTool : EditorWindow
         var clone = JsonUtility.FromJson<BezierCurve>(JsonUtility.ToJson(source));
         // Deduplicate name: baseName + Copy + number / 去重命名：原名+Copy+数字
         string baseName = clone.Name + "Copy";
-        clone.Name = baseName;
-        int dedup = 1;
-        while (_manager.Curves.Exists(c => c.Name == clone.Name))
-            clone.Name = $"{baseName}{dedup++}";
+        clone.Name = NameUtil.Deduplicate(baseName, n => _manager.Curves.Exists(c => c.Name == n));
         // Reset non-serialized fields / 重置非序列化字段
         clone.IsSelected = false;
         clone.SelectedSegmentIndex = -1;
@@ -314,6 +350,7 @@ public partial class CurveTool : EditorWindow
             UseEditorSnapSettings = s.UseEditorSnapSettings;
             SnapGridSize = s.SnapGridSize;
             SnapIncrementMove = s.SnapIncrementMove;
+            UseMoveTool = true; // locked on: editing requires the Unity Move tool (W) / 锁定开启：编辑需移动工具(W)
             GenerationColor = s.GenerationColor;
             VertexPointColor = s.VertexPointColor;
             HandleEndPointColor = s.HandleEndPointColor;
