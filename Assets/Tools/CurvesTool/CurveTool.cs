@@ -217,6 +217,7 @@ public partial class CurveTool : EditorWindow
             // 互斥：开启编辑模式即取得占用，并关闭另一工具（三角面）的编辑模式。
             EditModeGate.Request("curve", newEdit, () => { _editMode = false; SceneView.RepaintAll(); });
             _editMode = newEdit;
+            if (newEdit) ToolCursorInteraction.SetCursorSelected(false);
             SceneView.RepaintAll();
         }
 
@@ -312,7 +313,6 @@ public partial class CurveTool : EditorWindow
         public bool UseEditorSnapSettings = true;
         public Vector3 SnapGridSize = DefaultSnapGridSize;
         public Vector3 SnapIncrementMove = DefaultSnapIncrementMove;
-        public bool UseMoveTool = true;
         public int Language = 0; // 0=EN, 1=ZH
     }
 
@@ -330,7 +330,6 @@ public partial class CurveTool : EditorWindow
             UseEditorSnapSettings = UseEditorSnapSettings,
             SnapGridSize = SnapGridSize,
             SnapIncrementMove = SnapIncrementMove,
-            UseMoveTool = UseMoveTool,
             Language = (int)L10n.Current,
         };
         System.IO.File.WriteAllText(SettingsPath, JsonUtility.ToJson(s, prettyPrint: true));
@@ -351,7 +350,7 @@ public partial class CurveTool : EditorWindow
             UseEditorSnapSettings = s.UseEditorSnapSettings;
             SnapGridSize = s.SnapGridSize;
             SnapIncrementMove = s.SnapIncrementMove;
-            UseMoveTool = s.UseMoveTool;
+            UseMoveTool = true; // locked on: editing requires the Unity Move tool (W) / 锁定开启：编辑需移动工具(W)
             GenerationColor = s.GenerationColor;
             VertexPointColor = s.VertexPointColor;
             HandleEndPointColor = s.HandleEndPointColor;

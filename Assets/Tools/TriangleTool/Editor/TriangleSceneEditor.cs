@@ -16,12 +16,7 @@ namespace TriangleTool.EditorTools
         /// <summary>Point hit radius (world units, scaled by the view). / 点命中半径（世界单位，随视图缩放）</summary>
         private static float PointHitRadius => 0.28f;
 
-        private static bool _isDragging;
         private static bool _undoRecorded;
-        private static int _draggedVertexIndex;   // 0..2 / 被拖拽的顶点索引
-        private static Vector3 _dragStartPos;     // dragged point at drag start / 拖拽起始时的点位置
-        private static Vector3 _dragStartMouse;   // projected mouse at drag start / 拖拽起始投影位置
-        private static Vector3 _dragNormal;       // face plane normal at drag start (stable during drag) / 拖拽起始的面法线（拖拽期间稳定）
         private static bool _registered;
 
         public static void Register()
@@ -38,33 +33,30 @@ namespace TriangleTool.EditorTools
             _registered = false;
         }
 
-        /// <summary>SceneView entry point: dispatches events only while the tool is in edit mode.
-        /// SceneView 入口：仅当工具处于编辑模式时分发事件。</summary>
+        /// <summary>SceneView entry point: dispatches events only while the tool is in edit mode and the
+        /// Unity Move tool (W) is active. / SceneView 入口：仅当工具处于编辑模式且 Unity 移动工具(W)激活时分发事件。</summary>
         private static void OnSceneGUI(SceneView sv)
         {
             var w = TriangleTool.Instance;
-            if (w == null || !w.IsEditMode) { _isDragging = false; _undoRecorded = false; ToolCursorInteraction.Reset(); return; }
+            if (w == null || !w.IsEditMode) { _undoRecorded = false; return; }
             var m = TriangleFaceManager.Instance;
             if (m == null) return;
 
             Event e = Event.current;
-            int cid = GUIUtility.GetControlID(FocusType.Passive);
+            // Move-tool-only editing: the tool is inert unless the Unity Move tool (W) is active; the built-in
+            // drag path is cut off (deprecated) and only the PositionHandle drives movement.
+            // 仅移动工具(W)编辑：非移动工具状态下工具不响应（切断并废弃自带拖拽）；仅 PositionHandle 驱动移动。
             bool moveEdit = w.UseMoveTool && Tools.current == Tool.Move;
-
-            // Consume events in edit mode to block default scene selection/orbit, except for move-tool
-            // editing where AddDefaultControl would starve the PositionHandle.
-            // 编辑模式下消耗事件阻止 Unity 默认场景选择/轨道；仅移动工具编辑例外（AddDefaultControl 会抢占 PositionHandle）。
-            if (!moveEdit) HandleUtility.AddDefaultControl(cid);
+            if (!moveEdit) return;
 
             switch (e.type)
             {
-                case EventType.MouseDown: HandleMouseDown(e, m, w, moveEdit); break;
-                case EventType.MouseDrag: HandleMouseDrag(e, m, w, moveEdit); break;
+                case EventType.MouseDown: HandleMouseDown(e, m, w); break;
+                case EventType.MouseDrag: HandleMouseDrag(e, m, w); break;
                 case EventType.MouseUp: HandleMouseUp(e); break;
             }
 
-            if (moveEdit)
-                DrawMoveToolHandle(m, w);
+            DrawMoveToolHandle(m, w);
         }
 
         // ===== Helpers / 辅助 =====
@@ -97,130 +89,82 @@ namespace TriangleTool.EditorTools
 
         // ===== Mouse events / 鼠标事件 =====
 
-        private static void HandleMouseDown(Event e, TriangleFaceManager m, TriangleTool w, bool moveEdit)
+        private static void HandleMouseDown(Event e, TriangleFaceManager m, TriangleTool w)
         {
             if (e.button != 0 || e.alt) return;
 
             if (!TryHitPoint(m, e, out int hitFaceIndex, out int hitVertex))
             {
-                // Try the shared tool cursor before clearing the selection (empty-space behavior).
-                // 先尝试共享工具游标，再走空白点击清空选中逻辑。
+                // Try the shared tool cursor before clearing the selection. / 先尝试共享工具游标。
                 if (ToolCursorInteraction.TryHitCursor(m, e, w.CursorDisplaySize))
                 {
-                    ToolCursorInteraction.BeginDrag();
-                    e.Use();
+                    ToolCursorInteraction.SetCursorSelected(true);
+                    m.ClearSelection();
+                    // Do NOT consume the mouse-down: let the cursor PositionHandle grab the drag.
+                    // 不消费鼠标按下：让游标 PositionHandle 能够接管拖拽。
                     SceneView.RepaintAll();
                     w.Repaint();
                     return;
                 }
 
-                // Empty-space click: clear the selection, unless it lands on the move-handle gizmo.
-                // 空白点击：清空选中；但落在移动手柄 Gizmo 上时不清空。
-                if (moveEdit && m.SelectedFace != null &&
+                // A click on the move-handle gizmo must NOT clear the selection. / 点击移动手柄 Gizmo 不清空选中。
+                if (m.SelectedFace != null &&
                     SceneDragUtility.IsOnHandleGizmo(FacePoint(m.SelectedFace, m.SelectedVertexIndex), e.mousePosition))
                     return;
+                ToolCursorInteraction.SetCursorSelected(false);
                 m.ClearSelection();
-                _isDragging = false;
                 e.Use();
                 SceneView.RepaintAll();
                 w.Repaint();
                 return;
             }
 
-            // Select the face and its vertex.
-            // 选中面及其顶点。
+            // Select the face and its vertex (cursor deselected). / 选中面及其顶点（取消游标选中）。
+            ToolCursorInteraction.SetCursorSelected(false);
             int faceIndex = hitFaceIndex;
             if (m.SelectedFaceIndex != faceIndex) m.Select(faceIndex);
             m.SelectedVertexIndex = hitVertex;
             SceneView.RepaintAll();
-
-            if (moveEdit)
-            {
-                // Move-tool editing: select only (let the PositionHandle drive the drag); do not consume.
-                // 移动工具编辑：仅选中（交给 PositionHandle 驱动拖拽）；不消费事件。
-                w.Repaint();
-                return;
-            }
-
-            // Built-in drag start.
-            // 工具自带拖拽开始。
-            var face = m.Faces[faceIndex];
-            _draggedVertexIndex = hitVertex;
-            _dragStartPos = FacePoint(face, hitVertex);
-            _dragNormal = FaceNormal(face);
-            _dragStartMouse = SceneDragUtility.ProjectMouseOnPlane(e, _dragNormal, _dragStartPos);
-
-            bool snapActive = EditorSnapSettings.gridSnapEnabled || e.control || e.command;
-            if (snapActive)
-                _dragStartMouse = SceneDragUtility.SnapVector3(_dragStartMouse, SnapStep(w, e.control || e.command));
-
-            _isDragging = true;
-            _undoRecorded = false;
-            e.Use();
-            SceneView.RepaintAll();
             w.Repaint();
         }
 
-        private static void HandleMouseDrag(Event e, TriangleFaceManager m, TriangleTool w, bool moveEdit)
+        private static void HandleMouseDrag(Event e, TriangleFaceManager m, TriangleTool w)
         {
-            // Shared tool cursor drag / 共享工具游标拖拽
-            if (ToolCursorInteraction.IsDragging)
-            {
-                Vector3 snapStep = SnapStep(w, e != null && (e.control || e.command));
-                ToolCursorInteraction.Drag(m, e, EditorSnapSettings.gridSnapEnabled || (e.control || e.command), snapStep,
-                    () => Undo.RecordObject(m, "移动游标"), () => m.MarkDirty());
-                w.Repaint();
-                return;
-            }
-
-            if (!_isDragging) return;
-            // Move-tool editing: delegated to the PositionHandle; do not consume.
-            // 移动工具编辑：交给 PositionHandle；不消费事件。
-            if (moveEdit) return;
-
-            var face = m.SelectedFace;
-            if (face == null || _draggedVertexIndex < 0 || _draggedVertexIndex > 2) return;
-
-            Vector3 current = SceneDragUtility.ProjectMouseOnPlane(e, _dragNormal, _dragStartPos);
-            bool snapActive = EditorSnapSettings.gridSnapEnabled || e.control || e.command;
-            if (snapActive)
-                current = SceneDragUtility.SnapVector3(current, SnapStep(w, e.control || e.command));
-
-            Vector3 newPos = _dragStartPos + (current - _dragStartMouse);
-
-            if (!_undoRecorded) { Undo.RecordObject(m, "移动三角面顶点"); _undoRecorded = true; }
-            SetFacePoint(face, _draggedVertexIndex, newPos);
-            m.MarkDirty();
-            e.Use();
-            SceneView.RepaintAll();
-            w.Repaint();
+            // Move-tool-only editing: the PositionHandle drives movement; the built-in drag is cut off.
+            // 仅移动工具(W)编辑：由 PositionHandle 驱动移动；自带拖拽已切断。
         }
 
         private static void HandleMouseUp(Event e)
         {
-            if (_isDragging && e.button == 0)
-            {
-                _isDragging = false;
-                _undoRecorded = false;
-                e.Use();
-            }
-            ToolCursorInteraction.EndDrag(e);
+            // Move-tool-only editing: no built-in drag to end. / 仅移动工具(W)编辑：无自带拖拽需要结束。
         }
 
         // ===== Move tool adaptation / 移动工具适配 =====
 
-        /// <summary>Draws a PositionHandle for the selected face's vertex and writes the dragged result back.
-        /// 为选中面的顶点绘制 PositionHandle，并将拖拽结果写回。</summary>
+        /// <summary>Draws a PositionHandle for the selected face's vertex (or the selected cursor) and writes
+        /// the dragged result back. / 为选中面的顶点（或选中游标）绘制 PositionHandle，并将拖拽结果写回。</summary>
         private static void DrawMoveToolHandle(TriangleFaceManager m, TriangleTool w)
         {
+            // Cursor selected → PositionHandle for the cursor. / 游标选中 → 为其绘制 PositionHandle。
+            if (ToolCursorInteraction.IsCursorSelected)
+            {
+                Event ce = Event.current;
+                bool ctrlSnap = ce != null && (ce.control || ce.command);
+                Vector3 csnap = SnapStep(w, ctrlSnap);
+                ToolCursorInteraction.DrawMoveHandle(m, csnap,
+                    EditorSnapSettings.gridSnapEnabled || ctrlSnap, ref _undoRecorded, () => m.MarkDirty());
+                w.Repaint();
+                return;
+            }
+
             var face = m.SelectedFace;
             if (face == null || m.SelectedVertexIndex < 0 || m.SelectedVertexIndex > 2) return;
 
             Vector3 worldPos = FacePoint(face, m.SelectedVertexIndex);
             Event e = Event.current;
-            bool ctrlSnap = e != null && (e.control || e.command);
-            bool snapActive = EditorSnapSettings.gridSnapEnabled || ctrlSnap;
-            Vector3 snapStep = SnapStep(w, ctrlSnap);
+            bool eCtrlSnap = e != null && (e.control || e.command);
+            bool snapActive = EditorSnapSettings.gridSnapEnabled || eCtrlSnap;
+            Vector3 snapStep = SnapStep(w, eCtrlSnap);
 
             if (SceneMoveTool.DrawPositionHandle(m, worldPos, Quaternion.identity, snapStep, snapActive,
                     ref _undoRecorded, "移动三角面顶点", out Vector3 newPos))

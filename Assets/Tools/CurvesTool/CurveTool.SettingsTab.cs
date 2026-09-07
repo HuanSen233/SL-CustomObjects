@@ -87,20 +87,14 @@ public partial class CurveTool
 
         GUILayout.Space(12);
         EditorGUILayout.LabelField(L10n.T("interaction"), EditorStyles.boldLabel);
-        // Move-tool editing toggle (default on): move vertices/handles via the Unity Move tool (W), suppressing the built-in drag.
-        // 移动工具编辑开关（默认开）：使用 Unity 移动工具（W）移动顶点/控制柄，屏蔽工具自带的拖拽。
+        // Move-tool editing is locked ON (editing requires the Unity Move tool (W)); the built-in drag is removed.
+        // 移动工具编辑锁定为开启（编辑需 Unity 移动工具(W)）；工具自带拖拽已切断并废弃。
+        EditorGUI.BeginDisabledGroup(true);
         EditorGUILayout.BeginHorizontal();
         GUILayout.Label(new GUIContent(L10n.T("use_move_tool"), L10n.T("use_move_tool_tip")), GUILayout.Width(EditorGUIUtility.currentViewWidth * 0.62f));
-        bool useMove = UseMoveTool;
-        EditorGUI.BeginChangeCheck();
-        useMove = EditorGUILayout.Toggle(useMove);
+        EditorGUILayout.Toggle(true);
         EditorGUILayout.EndHorizontal();
-        if (EditorGUI.EndChangeCheck() && useMove != UseMoveTool)
-        {
-            UseMoveTool = useMove;
-            SaveSettings();
-            SceneView.RepaintAll();
-        }
+        EditorGUI.EndDisabledGroup();
 
         GUILayout.Space(12);
         if (GUILayout.Button(L10n.T("reset_default"), GUILayout.Height(28)))

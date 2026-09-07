@@ -46,7 +46,11 @@ namespace TriangleTool.EditorTools
 
             // ~ Input / 输入
             EditorGUILayout.LabelField(TriangleL10n.T("input"), EditorStyles.boldLabel);
-            DrawSettingRow(TriangleL10n.T("use_move_tool"), () => { UseMoveTool = EditorGUILayout.Toggle(UseMoveTool); });
+            DrawSettingRow(TriangleL10n.T("use_move_tool"), () =>
+            {
+                using (new EditorGUI.DisabledScope(true))
+                    EditorGUILayout.Toggle(true); // locked on / 锁定开启
+            });
             DrawSettingRow(TriangleL10n.T("use_editor_snap"), () => { UseEditorSnapSettings = EditorGUILayout.Toggle(UseEditorSnapSettings); });
             if (!UseEditorSnapSettings)
             {
@@ -61,7 +65,6 @@ namespace TriangleTool.EditorTools
             // ~ Colors / 颜色
             EditorGUILayout.LabelField(TriangleL10n.T("color"), EditorStyles.boldLabel);
             DrawSettingRow(TriangleL10n.T("face_color"), () => { FaceColor = EditorGUILayout.ColorField(FaceColor); });
-            DrawSettingRow(TriangleL10n.T("fallback_color"), () => { FallbackColor = EditorGUILayout.ColorField(FallbackColor); });
             DrawSettingRow(TriangleL10n.T("collidable"), () => { Collidable = EditorGUILayout.Toggle(Collidable); });
             if (GUI.changed) SaveSettings();
 
@@ -92,7 +95,6 @@ namespace TriangleTool.EditorTools
                 FlipWinding = false;
                 Collidable = false;
                 FaceColor = DefaultFaceColor;
-                FallbackColor = DefaultFallbackColor;
                 EditMaxBlocksPerFrame = DefaultEditMaxBlocksPerFrame;
                 ImportMaxBlocksPerFrame = DefaultImportMaxBlocksPerFrame;
                 UseMoveTool = true;

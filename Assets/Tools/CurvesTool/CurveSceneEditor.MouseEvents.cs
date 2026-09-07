@@ -54,6 +54,7 @@ public static partial class CurveSceneEditor
                         // Move-tool editing: select only (so the PositionHandle shows); do NOT set _isDragging
                         // and do NOT consume the event, letting the PositionHandle take over the drag.
                         // 移动工具编辑：仅选中（使 PositionHandle 显示）；不进入自写拖拽、不消费事件，让 PositionHandle 接管拖拽。
+                        ToolCursorInteraction.SetCursorSelected(false);
                         w.Repaint();
                         return;
                     }
@@ -108,27 +109,23 @@ public static partial class CurveSceneEditor
                         // Try to hit the cursor / 尝试命中游标
                         if (ToolCursorInteraction.TryHitCursor(m, e, CurveTool.Instance?.CursorDisplaySize ?? 0.15f))
                         {
-                            ToolCursorInteraction.BeginDrag();
-                            e.Use();
+                            // Move-tool editing: select the cursor so its PositionHandle shows; no built-in drag.
+                            // 移动工具编辑：选中游标以显示其 PositionHandle；不再使用自带拖拽。
+                            // Do NOT consume the mouse-down: let the cursor PositionHandle grab the drag.
+                            // 不消费鼠标按下：让游标 PositionHandle 能够接管拖拽。
+                            ToolCursorInteraction.SetCursorSelected(true);
+                            m.ClearSelection();
+                            SceneView.RepaintAll();
+                            w.Repaint();
+                            return;
                         }
                         else
                         {
-                            // Move-tool editing: a click that lands ON the move-handle gizmo (its axis arrows /
-                            // center) must NOT clear the selection, otherwise the move handle disappears and its
-                            // arrows can never be clicked — leave it to the PositionHandle. A click on truly empty
-                            // space clears the selection, matching the built-in drag behavior.
-                            // 移动工具编辑：点在移动手柄 Gizmo（轴箭头/中心）上不能清空选中，否则手柄消失、
-                            // 轴箭头永远无法点选——交给 PositionHandle；点在真正空白处则清空选中，与自带拖拽一致。
-                            if (w.UseMoveTool && Tools.current == Tool.Move)
-                            {
-                                if (IsOnMoveHandleGizmo(m, e.mousePosition)) return;
-                                m.ClearSelection();
-                                _isDragging = false;
-                                e.Use();
-                                SceneView.RepaintAll();
-                                w.Repaint();
-                                return;
-                            }
+                            // A click on the move-handle gizmo (axis arrows/center) must NOT clear the selection,
+                            // otherwise the handle disappears and its arrows can never be clicked.
+                            // 点击移动手柄 Gizmo（轴箭头/中心）不能清空选中，否则手柄消失、轴箭头无法点选。
+                            if (IsOnMoveHandleGizmo(m, e.mousePosition)) return;
+                            ToolCursorInteraction.SetCursorSelected(false);
                             m.ClearSelection();
                             _isDragging = false;
                             e.Use();
@@ -215,21 +212,10 @@ public static partial class CurveSceneEditor
 
     private static void HandleMouseDrag(Event e, CurveManager m, CurveTool w)
     {
-        // Cursor dragging (shared interaction) / 游标拖拽（共享交互）
-        if (ToolCursorInteraction.IsDragging)
-        {
-            bool snapActive = EditorSnapSettings.gridSnapEnabled || e.control || e.command;
-            Vector3 snapStep = GetSnapStep(w, e.control || e.command);
-            ToolCursorInteraction.Drag(m, e, snapActive, snapStep,
-                () => Undo.RecordObject(m, "移动游标"), () => m.MarkDirty());
-            CurveTool.Instance?.Repaint();
-            return;
-        }
-
         if (!_isDragging) return;
-        // Move-tool editing enabled: vertex/handle movement is delegated to the Unity Move tool (PositionHandle).
-        // Do not consume the event, so the PositionHandle can receive the drag.
-        // 移动工具编辑启用：顶点/控制柄移动交由 Unity 移动工具（PositionHandle）处理；不消费事件，让 PositionHandle 收到拖拽。
+        // Move-tool-only editing: vertex/handle movement is delegated to the Unity Move tool (PositionHandle);
+        // the built-in drag path below is retained only for reference and is never reached (deprecated).
+        // 仅移动工具(W)编辑：顶点/控制柄移动交由 Unity 移动工具（PositionHandle）处理；下方自带拖拽仅作参考，永不到达（废弃）。
         if (w.UseMoveTool && Tools.current == Tool.Move) { return; }
         var vertex = m.SelectedVertex;
         if (vertex == null) return;
@@ -426,7 +412,6 @@ public static partial class CurveSceneEditor
     private static void HandleMouseUp(Event e)
     {
         if (_isDragging && e.button == 0) { _isDragging = false; _undoRecorded = false; e.Use(); }
-        ToolCursorInteraction.EndDrag(e);
     }
 
     private static void HandleKeyDown(Event e, CurveManager m)

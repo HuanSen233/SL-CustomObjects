@@ -72,20 +72,16 @@ public static partial class CurveSceneEditor
     private static void OnSceneGUI(SceneView sv)
     {
         var w = CurveTool.Instance;
-        if (w == null || !w.IsEditMode) { _isDragging = false; _undoRecorded = false; ToolCursorInteraction.Reset(); return; }
+        if (w == null || !w.IsEditMode) { _isDragging = false; _undoRecorded = false; return; }
         var m = CurveManager.Instance;
         if (m == null) return;
 
         Event e = Event.current;
-        int cid = GUIUtility.GetControlID(FocusType.Passive);
+        // Move-tool-only editing: the tool is inert unless the Unity Move tool (W) is active; the built-in
+        // drag path is cut off (deprecated) and only the PositionHandle drives movement.
+        // 仅移动工具(W)编辑：非移动工具状态下工具不响应（切断并废弃自带拖拽）；仅 PositionHandle 驱动移动。
         bool moveEdit = w.UseMoveTool && Tools.current == Tool.Move;
-
-        // Consume events in edit mode to block default scene selection/orbit operations.
-        // 编辑模式下始终消耗事件，阻止 Unity 默认场景选择/轨道操作。
-        // Move-tool editing is an exception: AddDefaultControl would starve the PositionHandle,
-        // so skip it there and let the Move tool gizmo take the interaction.
-        // 移动工具编辑例外：AddDefaultControl 会抢占 PositionHandle，故此处跳过，让移动工具 Gizmo 接管交互。
-        if (!moveEdit) HandleUtility.AddDefaultControl(cid);
+        if (!moveEdit) return;
 
         switch (e.type)
         {
@@ -96,10 +92,9 @@ public static partial class CurveSceneEditor
             case EventType.ScrollWheel: break;
         }
 
-        // Move-tool editing: when enabled and the Move tool (W) is active, drive the selected vertex/handle via a PositionHandle.
-        // 移动工具编辑：启用且处于移动工具（W）时，用 PositionHandle 驱动选中顶点/控制柄
-        if (moveEdit)
-            DrawMoveToolHandles(m);
+        // Move-tool editing drives the selected vertex/handle/cursor via a PositionHandle.
+        // 移动工具编辑：用 PositionHandle 驱动选中的顶点/控制柄/游标。
+        DrawMoveToolHandles(m);
     }
 
     /// <summary>Which element the move handle is targeting. / 移动手柄目标元素</summary>
@@ -136,6 +131,19 @@ public static partial class CurveSceneEditor
     /// 为选中顶点/控制柄绘制 Unity PositionHandle，并将拖拽结果写回数据。</summary>
     private static void DrawMoveToolHandles(CurveManager m)
     {
+        // Cursor selected → draw a PositionHandle for the cursor (Move-tool editing). / 游标选中 → 为其绘制 PositionHandle。
+        if (ToolCursorInteraction.IsCursorSelected)
+        {
+            var cw = CurveTool.Instance;
+            Event ce = Event.current;
+            bool cctrlSnap = ce != null && (ce.control || ce.command);
+            Vector3 cgs = GetSnapStep(cw, cctrlSnap);
+            ToolCursorInteraction.DrawMoveHandle(m, cgs,
+                EditorSnapSettings.gridSnapEnabled || cctrlSnap, ref _undoRecorded, () => m.MarkDirty());
+            CurveTool.Instance?.Repaint();
+            return;
+        }
+
         var curve = m.SelectedCurve;
         var vertex = m.SelectedVertex;
         if (curve == null || vertex == null) return;

@@ -54,7 +54,12 @@ namespace TriangleTool.EditorTools
         public bool FlipWinding;
         public bool Collidable;
         public Color FaceColor = DefaultFaceColor;
-        public Color FallbackColor = DefaultFallbackColor;
+        /// <summary>Fallback color for the Model Import tab's forced-fallback build (independent of the Edit tab).
+        /// 模型导入页强制回退色（独立于编辑页）。</summary>
+        private Color _objFallbackColor = DefaultFallbackColor;
+        /// <summary>Fallback color for the Edit tab's forced-fallback generate (independent of the Import tab).
+        /// 编辑页强制回退色（独立于模型导入页）。</summary>
+        private Color _editFallbackColor = DefaultFallbackColor;
         /// <summary>Max spawned blocks per frame for the Edit tab's generate. / 编辑页生成每帧最大块数。</summary>
         public int EditMaxBlocksPerFrame = DefaultEditMaxBlocksPerFrame;
         /// <summary>Max spawned blocks per frame for the Model Import build. / 模型导入构建每帧最大块数。</summary>
@@ -96,6 +101,9 @@ namespace TriangleTool.EditorTools
         private ObjBuildSession _objSession;
         private string _objError;
         private bool _objForceColor;
+        /// <summary>Force the Edit tab's generated model to use the fallback color (like the Model Import tab).
+        /// 编辑页生成模型是否强制使用回退色（同模型导入页）。</summary>
+        private bool _editForceFallback;
 
         // ===== Edit-tab generate session (framed) / 编辑页生成会话（分帧） =====
         private ObjBuildSession _editSession;
@@ -226,7 +234,7 @@ namespace TriangleTool.EditorTools
             {
                 if (face == null || !face.IsEnabled) continue;
                 if (anySelected && !face.IsSelected) continue;
-                triangles.Add(new TriangleData(face.P1, face.P2, face.P3, face.Color));
+                triangles.Add(new TriangleData(face.P1, face.P2, face.P3, _editForceFallback ? _editFallbackColor : face.Color));
             }
             if (triangles.Count == 0) return;
 
@@ -266,7 +274,7 @@ namespace TriangleTool.EditorTools
                 return;
             }
 
-            Color fallback = FallbackColor;
+            Color fallback = _objFallbackColor;
             bool forceColor = _objForceColor;
 
             if (!ObjModelLoader.TryLoadTriangles(_objPath, fallback, forceColor,
@@ -355,10 +363,8 @@ namespace TriangleTool.EditorTools
             public bool FlipWinding;
             public bool Collidable;
             public Color FaceColor = DefaultFaceColor;
-            public Color FallbackColor = DefaultFallbackColor;
             public int EditMaxBlocksPerFrame = DefaultEditMaxBlocksPerFrame;
             public int ImportMaxBlocksPerFrame = DefaultImportMaxBlocksPerFrame;
-            public bool UseMoveTool = true;
             public bool UseEditorSnapSettings = true;
             public Vector3 SnapGridSize = DefaultSnapGridSize;
             public Vector3 SnapIncrementMove = DefaultSnapIncrementMove;
@@ -381,10 +387,8 @@ namespace TriangleTool.EditorTools
                     FlipWinding = FlipWinding,
                     Collidable = Collidable,
                     FaceColor = FaceColor,
-                    FallbackColor = FallbackColor,
                     EditMaxBlocksPerFrame = EditMaxBlocksPerFrame,
                     ImportMaxBlocksPerFrame = ImportMaxBlocksPerFrame,
-                    UseMoveTool = UseMoveTool,
                     UseEditorSnapSettings = UseEditorSnapSettings,
                     SnapGridSize = SnapGridSize,
                     SnapIncrementMove = SnapIncrementMove,
@@ -412,10 +416,9 @@ namespace TriangleTool.EditorTools
                 FlipWinding = s.FlipWinding;
                 Collidable = s.Collidable;
                 FaceColor = s.FaceColor;
-                FallbackColor = s.FallbackColor;
                 EditMaxBlocksPerFrame = s.EditMaxBlocksPerFrame;
                 ImportMaxBlocksPerFrame = s.ImportMaxBlocksPerFrame;
-                UseMoveTool = s.UseMoveTool;
+                UseMoveTool = true; // locked on: editing requires the Unity Move tool (W) / 锁定开启：编辑需移动工具(W)
                 UseEditorSnapSettings = s.UseEditorSnapSettings;
                 SnapGridSize = s.SnapGridSize;
                 SnapIncrementMove = s.SnapIncrementMove;

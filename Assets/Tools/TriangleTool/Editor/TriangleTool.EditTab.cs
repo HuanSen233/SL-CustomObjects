@@ -77,6 +77,7 @@ namespace TriangleTool.EditorTools
                 // 互斥：开启编辑模式即取得占用，并关闭另一工具（曲线）的编辑模式。
                 EditModeGate.Request("triangle", newEdit, () => { _editMode = false; SceneView.RepaintAll(); });
                 _editMode = newEdit;
+                if (newEdit) ToolCursorInteraction.SetCursorSelected(false);
                 SceneView.RepaintAll();
             }
 
@@ -392,6 +393,22 @@ namespace TriangleTool.EditorTools
         private void DrawGenerateButton()
         {
             DrawBuildModeBar(Mode, m => { Mode = m; SaveSettings(); SceneView.RepaintAll(); }, TriangleL10n.T("mode"));
+            EditorGUILayout.Space(4);
+
+            // Force the generated model to use the fallback color (mirrors the Model Import tab).
+            // 生成模型强制使用回退色（同模型导入页）。
+            float labelW = EditorGUIUtility.currentViewWidth * 0.3f;
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Label(TriangleL10n.T("force_fallback"), GUILayout.Width(labelW));
+            _editForceFallback = EditorGUILayout.Toggle(_editForceFallback);
+            EditorGUILayout.EndHorizontal();
+            using (new EditorGUI.DisabledScope(!_editForceFallback))
+            {
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Label(TriangleL10n.T("fallback_color"), GUILayout.Width(labelW));
+                _editFallbackColor = EditorGUILayout.ColorField(GUIContent.none, _editFallbackColor);
+                EditorGUILayout.EndHorizontal();
+            }
             EditorGUILayout.Space(4);
 
             bool any = _manager != null && _manager.Faces.Count > 0;

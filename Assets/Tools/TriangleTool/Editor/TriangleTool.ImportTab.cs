@@ -91,7 +91,7 @@ namespace TriangleTool.EditorTools
             {
                 EditorGUILayout.BeginHorizontal();
                 GUILayout.Label(TriangleL10n.T("fallback_color"), GUILayout.Width(labelW));
-                FallbackColor = EditorGUILayout.ColorField(GUIContent.none, FallbackColor);
+                _objFallbackColor = EditorGUILayout.ColorField(GUIContent.none, _objFallbackColor);
                 EditorGUILayout.EndHorizontal();
             }
 
